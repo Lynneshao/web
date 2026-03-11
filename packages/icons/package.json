@@ -19,11 +19,14 @@
   ],
   "scripts": {
     "build": "tsup --config tsup.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm test && pnpm build && pnpm typecheck"
   },
   "devDependencies": {
     "@kweaver-web/tsconfig": "workspace:*",
     "@kweaver-web/tsup-config": "workspace:*",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
