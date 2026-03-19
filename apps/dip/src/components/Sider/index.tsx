@@ -5,7 +5,6 @@ import type { SiderType } from '@/routes/types'
 import HomeSider from './HomeSider'
 import styles from './index.module.less'
 import StoreSider from './StoreSider'
-import StudioSider from './StudioSider'
 
 const { Sider: AntdSider } = Layout
 
@@ -53,12 +52,10 @@ const Sider = ({ collapsed, onCollapse, topOffset = 0, type = 'home' }: SiderPro
         bottom: 0,
       }}
     >
-      {type === 'home' ? (
+      {type === 'home' || type === 'digital-human' ? (
         <HomeSider collapsed={collapsed} onCollapse={onCollapse} />
-      ) : type === 'store' ? (
-        <StoreSider collapsed={collapsed} onCollapse={onCollapse} />
       ) : (
-        <StudioSider collapsed={collapsed} onCollapse={onCollapse} />
+        <StoreSider collapsed={collapsed} onCollapse={onCollapse} />
       )}
     </AntdSider>
   )

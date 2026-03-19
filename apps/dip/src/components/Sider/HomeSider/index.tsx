@@ -1,21 +1,25 @@
-import { PushpinOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
-import { Menu, message, Popover, Tooltip } from 'antd'
+import { Button, Menu, message, Tooltip } from 'antd'
 import clsx from 'classnames'
 import { useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import logoImage from '@/assets/images/brand/logo.png'
 import SidebarAiStoreIcon from '@/assets/images/sider/aiStore.svg?react'
-import SidebarDipStudioIcon from '@/assets/images/sider/dipStudio.svg?react'
 import SidebarSystemIcon from '@/assets/images/sider/proton.svg?react'
-import { getFirstVisibleRouteBySiderType } from '@/routes/utils'
-import { useMicroAppStore, usePreferenceStore } from '@/stores'
+import { routeConfigs } from '@/routes/routes'
+import type { RouteConfig } from '@/routes/types'
+import {
+  getFirstVisibleRouteBySiderType,
+  getRouteByPath,
+  isRouteVisibleForRoles,
+} from '@/routes/utils'
 import { useLanguageStore } from '@/stores/languageStore'
 import { useOEMConfigStore } from '@/stores/oemConfigStore'
 import { getFullPath } from '@/utils/config'
 import { getAccessToken, getRefreshToken } from '@/utils/http/token-config'
-import AppIcon from '../../AppIcon'
 import IconFont from '../../IconFont'
+import { MaskIcon } from '../components/GradientMaskIcon'
 import { UserMenuItem } from '../components/UserMenuItem'
 
 interface HomeSiderProps {
@@ -34,111 +38,154 @@ interface HomeSiderProps {
 const HomeSider = ({ collapsed, onCollapse }: HomeSiderProps) => {
   const navigate = useNavigate()
   const location = useLocation()
-  const [messageApi, messageContextHolder] = message.useMessage()
-  const { pinnedMicroApps, unpinMicroApp, wenshuAppInfo } = usePreferenceStore()
-  const { setAppSource } = useMicroAppStore()
+  const [, messageContextHolder] = message.useMessage()
   const { language } = useLanguageStore()
   const { getOEMResourceConfig } = useOEMConfigStore()
   const oemResourceConfig = getOEMResourceConfig(language)
   // TODO: 角色信息需要从其他地方获取，暂时使用空数组
   const roleIds = useMemo(() => new Set<string>([]), [])
 
-  const handleOpenApp = useCallback(
-    (appId: number) => {
-      // 记录来源类型，并在容器中根据 Store 读取，不再依赖 URL 参数
-      setAppSource(appId, 'home')
-      navigate(`/application/${appId}`)
-    },
-    [navigate, setAppSource],
-  )
+  /** 新建会话 */
+  const handleCreateSession = () => {
+    navigate('/home')
+  }
 
-  const handleUnpin = useCallback(
-    async (appId: number) => {
-      try {
-        await unpinMicroApp(appId)
-        messageApi.success('已取消钉住')
-      } catch (error) {
-        console.error('Failed to unpin micro app:', error)
-        messageApi.error('取消钉住失败，请稍后重试')
+  /** 根据当前路由确定选中的菜单项 */
+  const getSelectedKey = useCallback(() => {
+    const pathname = location.pathname
+    if (pathname === '/') {
+      return 'home'
+    }
+
+    const route = getRouteByPath(pathname)
+    return route?.key || 'home'
+  }, [location.pathname])
+
+  const selectedKey = getSelectedKey()
+
+  /** 菜单项 */
+  const menuItems = useMemo<MenuProps['items'][]>(() => {
+    const hasKey = (route: RouteConfig): route is RouteConfig & { key: string } => {
+      return Boolean(route.key)
+    }
+
+    const visibleSidebarRoutes = routeConfigs
+      .filter((route) => route.showInSidebar && route.key)
+      .filter((route) => isRouteVisibleForRoles(route, roleIds))
+      .filter((route) => route.handle?.layout?.siderType === 'digital-human')
+      .filter(hasKey)
+
+    // 按是否为 digital-human-management 拆成两组
+    const managementRoutes = visibleSidebarRoutes.filter(
+      (route) => route.key === 'digital-human-management',
+    )
+    const normalRoutes = visibleSidebarRoutes.filter(
+      (route) => route.key !== 'digital-human-management',
+    )
+
+    console.log(normalRoutes, managementRoutes)
+
+    const items: MenuProps['items'][] = [[], []]
+
+    // 第一组：普通数字员工路由，按 group 分组展示
+    const groupMap = new Map<string, NonNullable<MenuProps['items']>>()
+    const groupedRouteOrder: string[] = []
+
+    normalRoutes.forEach((route) => {
+      if (!route.key) return
+
+      const item: Exclude<MenuProps['items'], undefined>[number] = {
+        key: route.key,
+        label: route.label || route.key,
+        icon: route.iconUrl ? (
+          <MaskIcon
+            url={route.iconUrl}
+            className="w-4 h-4"
+            background={
+              selectedKey === route.key
+                ? 'linear-gradient(210deg, #1C4DFA 0%, #3FA9F5 100%)'
+                : '#333333'
+            }
+          />
+        ) : null,
+        onClick: () => {
+          if (route.path) {
+            navigate(`/${route.path}`)
+          }
+        },
       }
-    },
-    [unpinMicroApp],
-  )
 
-  // const menuItems = useMemo<MenuProps['items']>(() => {
-  //   const items: MenuProps['items'] = []
+      if (!route.group) {
+        // 无 group 的路由直接平铺
+        items[0]?.push(item)
+        return
+      }
 
-  //   // 问数应用始终排在第一位（若存在）
-  //   if (wenshuAppInfo) {
-  //     items.push({
-  //       key: `micro-app-${wenshuAppInfo.id}`,
-  //       label: wenshuAppInfo.name,
-  //       icon: (
-  //         <AppIcon icon={wenshuAppInfo.icon} name={wenshuAppInfo.name} size={16} shape="square" />
-  //       ),
-  //       onClick: () => handleOpenApp(wenshuAppInfo.id),
-  //     })
-  //   }
-
-  //   // 钉住的应用（排除问数，避免重复）
-  //   pinnedMicroApps
-  //     .filter((app) => app.id !== wenshuAppInfo?.id)
-  //     .forEach((app) => {
-  //       items.push({
-  //         key: `micro-app-${app.id}`,
-  //         label: (
-  //           <div className="w-full h-full flex justify-between items-center">
-  //             {app.name}
-  //             <Popover content="取消固定">
-  //               <PushpinOutlined
-  //                 className="w-6 h-6 text-base flex items-center justify-center rounded text-[var(--dip-warning-color)] pin-icon opacity-0 hover:bg-[rgba(0,0,0,0.04)]"
-  //                 onClick={(e) => {
-  //                   e.stopPropagation()
-  //                   handleUnpin(app.id)
-  //                 }}
-  //               />
-  //             </Popover>
-  //           </div>
-  //         ),
-  //         icon: <AppIcon icon={app.icon} name={app.name} size={16} shape="square" />,
-  //         onClick: () => handleOpenApp(app.id),
-  //       })
-  //     })
-
-  //   return items
-  // }, [pinnedMicroApps, handleOpenApp, handleUnpin, wenshuAppInfo])
-
-  const menuItems = useMemo<MenuProps['items']>(() => {
-    const items: MenuProps['items'] = []
-
-    const firstStudioRoute = getFirstVisibleRouteBySiderType('studio', roleIds)
-    const studioPath = `/${firstStudioRoute?.path || 'home'}`
-    const studioHref = getFullPath(studioPath)
-
-    items.push({
-      key: 'home',
-      label: (
-        <a href={studioHref} target="_blank" rel="noopener noreferrer">
-          DIP Studio
-        </a>
-      ),
-      icon: <SidebarDipStudioIcon />,
+      if (!groupMap.has(route.group)) {
+        groupMap.set(route.group, [])
+        groupedRouteOrder.push(route.group)
+      }
+      const groupChildren = groupMap.get(route.group)
+      if (groupChildren) {
+        groupChildren.push(item)
+      }
     })
 
-    return items
-  }, [roleIds])
+    groupedRouteOrder.forEach((groupName) => {
+      const children = groupMap.get(groupName)
+      if (!children || children.length === 0) return
 
+      // 分组标题作为一个普通、不可点击的菜单项，后面紧跟该分组下的子项，整体平铺展示
+      items[0]?.push({
+        key: `group-${groupName}`,
+        label: groupName,
+        type: 'group',
+      })
+
+      children.forEach((child) => {
+        items[0]?.push(child)
+      })
+    })
+
+    // 第二组：digital-human-management 单独成组
+    if (managementRoutes.length > 0) {
+      const route = managementRoutes[0]
+      const item: Exclude<MenuProps['items'], undefined>[number] = {
+        key: route.key,
+        label: route.label || route.key,
+        icon: route.iconUrl ? (
+          <MaskIcon
+            url={route.iconUrl}
+            className="w-4 h-4"
+            background={
+              selectedKey === route.key
+                ? 'linear-gradient(210deg, #1C4DFA 0%, #3FA9F5 100%)'
+                : '#333333'
+            }
+          />
+        ) : null,
+        onClick: () => {
+          if (route.path) {
+            navigate(`/${route.path}`)
+          }
+        },
+      }
+
+      items[1]?.push(item)
+    }
+    console.log(items)
+    return items
+  }, [roleIds, selectedKey, navigate])
+
+  /** 外链菜单项 */
   const externalMenuItems = useMemo<MenuProps['items']>(() => {
     const firstStoreRoute = getFirstVisibleRouteBySiderType('store', roleIds)
-    const firstStudioRoute = getFirstVisibleRouteBySiderType('studio', roleIds)
     const baseOrigin = window.location.origin
     const getExternalUrl = (path: string) => `${baseOrigin}${path}`
 
     const storePath = `/${firstStoreRoute?.path || 'store/my-app'}`
-    const studioPath = `/${firstStudioRoute?.path || 'studio/project-management'}`
 
     const storeHref = getFullPath(storePath)
-    const studioHref = getFullPath(studioPath)
 
     // 业务知识网络单点登录参数
     const redirectUrl = '/studio/home'
@@ -176,15 +223,6 @@ const HomeSider = ({ collapsed, onCollapse }: HomeSiderProps) => {
         ),
         icon: <SidebarAiStoreIcon />,
       },
-      // {
-      //   key: 'dip-studio',
-      //   label: (
-      //     <a href={studioHref} target="_blank" rel="noopener noreferrer">
-      //       DIP Studio
-      //     </a>
-      //   ),
-      //   icon: <SidebarDipStudioIcon />,
-      // },
       {
         key: 'data-platform',
         label: (
@@ -220,24 +258,6 @@ const HomeSider = ({ collapsed, onCollapse }: HomeSiderProps) => {
     return `data:image/png;base64,${base64Image}`
   }, [oemResourceConfig])
 
-  const selectedKeys = useMemo(() => {
-    // const path = location.pathname
-    // const match = path.match(/^\/application\/(\d+)/)
-    // if (!match) {
-    //   return []
-    // }
-
-    // const appId = Number(match[1])
-    // const key = `micro-app-${appId}`
-
-    // const exists =
-    //   (wenshuAppInfo && wenshuAppInfo.id === appId) ||
-    //   pinnedMicroApps.some((app) => app.id === appId)
-
-    // return exists ? [key] : []
-    return ['home']
-  }, [location.pathname, pinnedMicroApps, wenshuAppInfo])
-
   return (
     <div className="flex flex-col h-full px-0 pt-4 pb-1 overflow-hidden">
       {messageContextHolder}
@@ -260,13 +280,32 @@ const HomeSider = ({ collapsed, onCollapse }: HomeSiderProps) => {
         </Tooltip>
       </div>
 
+      {/* 新建会话按钮 */}
+      <div
+        className={clsx(
+          'flex items-center gap-2 pb-10',
+          collapsed ? 'justify-center px-3' : 'justify-between px-5',
+        )}
+      >
+        <Tooltip title={collapsed ? '新建会话' : ''} placement="right">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleCreateSession}
+            styles={{ root: { width: '100%' } }}
+          >
+            {collapsed ? '' : '新建会话'}
+          </Button>
+        </Tooltip>
+      </div>
+
       {/* 菜单内容 */}
       <div className="flex-1 flex flex-col dip-hideScrollbar">
         <div className="flex-1">
           <Menu
             mode="inline"
-            selectedKeys={selectedKeys}
-            items={menuItems}
+            selectedKeys={[selectedKey]}
+            items={menuItems[0]}
             inlineCollapsed={collapsed}
             selectable
           />
@@ -274,6 +313,13 @@ const HomeSider = ({ collapsed, onCollapse }: HomeSiderProps) => {
 
         {/* 外链菜单内容 */}
         <div className="shrink-0">
+          <Menu
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            items={menuItems[1]}
+            inlineCollapsed={collapsed}
+            selectable
+          />
           <Menu
             mode="inline"
             selectedKeys={[]}

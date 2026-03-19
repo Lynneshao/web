@@ -11,7 +11,7 @@ import SearchInput from '@/components/SearchInput'
 import { useListService } from '@/hooks/useListService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 
-const DigitalEmployee = () => {
+const History = () => {
   const navigate = useNavigate()
   const { userInfo } = useUserInfoStore()
   const [, messageContextHolder] = message.useMessage()
@@ -209,4 +209,4 @@ const DigitalEmployee = () => {
   )
 }
 
-export default memo(DigitalEmployee)
+export default memo(History)

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
-export type HeaderType = 'store' | 'studio' | 'micro-app'
-export type SiderType = 'store' | 'studio' | 'home'
+export type HeaderType = 'store' | 'studio' | 'micro-app' | 'home'
+export type SiderType = 'store' | 'home' | 'digital-human'
 
 export const WENSHU_APP_KEY = 'cedb529407c345b1a27317baefa62800'
 

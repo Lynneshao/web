@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import type { Employee } from '@/apis'
 import { getDigitalEmployees } from '@/apis'
 import AiInput from '@/components/AiInput'
-import DEList from '@/components/DEList'
 import { useListService } from '@/hooks/useListService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useUserWorkPlanStore } from '@/stores/userWorkPlanStore'
 
-const Conversation = () => {
+const Home = () => {
   const navigate = useNavigate()
   const { userInfo } = useUserInfoStore()
   const { plans, fetchPlans } = useUserWorkPlanStore()
@@ -62,11 +61,6 @@ const Conversation = () => {
     navigate(`/studio/home`)
   }
 
-  /** 点击数字员工卡片 */
-  const handleCardClick = (employee: Employee) => {
-    navigate(`/studio/digital-employee/${employee.id}/setting`)
-  }
-
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return '上午好'
@@ -93,14 +87,9 @@ const Conversation = () => {
             placeholder="输入任何指令，通过@指定数字员工即刻为你执行"
           />
         </div>
-        {/* 数字员工卡片：固定在下方 */}
-        <div className="flex flex-col gap-y-4 flex-shrink-0 w-full mb-8">
-          <div className="text-base font-medium tracking-normal">数字员工</div>
-          <DEList employees={employees.slice(0, 3)} onCardClick={handleCardClick} />
-        </div>
       </div>
     </div>
   )
 }
 
-export default memo(Conversation)
+export default memo(Home)

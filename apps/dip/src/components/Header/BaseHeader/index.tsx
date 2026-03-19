@@ -1,13 +1,11 @@
-import { useCallback, useMemo, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import logoImage from '@/assets/images/brand/logo.png'
-import InfoIcon from '@/assets/images/info.svg?react'
 import type { HeaderType, SiderType } from '@/routes/types'
 import { getFirstVisibleRouteBySiderType, getParentRoute, getRouteByPath } from '@/routes/utils'
-import { useLanguageStore, useOEMConfigStore, useUserWorkPlanStore } from '@/stores'
+import { useLanguageStore, useOEMConfigStore } from '@/stores'
 import type { BreadcrumbItem } from '@/utils/micro-app/globalState'
 import { Breadcrumb } from '../components/Breadcrumb'
-import { ProjectInfoPopover } from '../components/ProjectInfoPopover'
 import { UserInfo } from '../components/UserInfo'
 
 /**
@@ -50,17 +48,10 @@ const getSectionName = (type: HeaderType): string => {
  */
 const BaseHeader = ({ headerType }: { headerType: HeaderType }) => {
   const location = useLocation()
-  const params = useParams()
   const navigate = useNavigate()
   const { getOEMResourceConfig } = useOEMConfigStore()
   const { language } = useLanguageStore()
   const oemResourceConfig = getOEMResourceConfig(language)
-  // 从 store 中获取项目信息
-  const workPlanId = params.workPlanId
-  const workPlanInfo = useUserWorkPlanStore((state) =>
-    state.plans.find((plan) => plan.id === Number(workPlanId)),
-  )
-  const [workPlanInfoOpen, setWorkPlanInfoOpen] = useState(false)
 
   // 不同平台（store/studio）各自的首路由，用于面包屑首页返回
   const roleIds = useMemo(() => new Set<string>([]), [])
@@ -81,9 +72,6 @@ const BaseHeader = ({ headerType }: { headerType: HeaderType }) => {
 
   // 获取当前路由配置
   const currentRoute = useMemo(() => getRouteByPath(location.pathname), [location.pathname])
-
-  // 检查是否是工作计划详情路由
-  const isWorkPlanDetailRoute = currentRoute?.path === 'studio/work-plan/:workPlanId'
 
   // 构建面包屑数据：BaseHeaderType名称 / 父路由名称 / 当前路由名称
   const breadcrumbItems: BreadcrumbItem[] = useMemo(() => {
@@ -111,10 +99,7 @@ const BaseHeader = ({ headerType }: { headerType: HeaderType }) => {
       // 当前路由名称（如果存在）
       if (currentRoute.label) {
         // 如果是项目详情路由，使用项目真实名称
-        let displayName = currentRoute.label
-        if (isWorkPlanDetailRoute && workPlanInfo) {
-          displayName = workPlanInfo.name
-        }
+        const displayName = currentRoute.label
 
         // 如果当前路由路径包含动态参数（如 :projectId），使用实际路径
         // 否则使用路由配置中的路径
@@ -136,7 +121,7 @@ const BaseHeader = ({ headerType }: { headerType: HeaderType }) => {
     }
 
     return result
-  }, [headerType, currentRoute, location.pathname, isWorkPlanDetailRoute, workPlanInfo])
+  }, [headerType, currentRoute, location.pathname])
 
   const getLogoUrl = () => {
     const base64Image = oemResourceConfig?.['logo.png']
