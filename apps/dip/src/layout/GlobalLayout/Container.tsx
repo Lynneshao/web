@@ -1,10 +1,9 @@
 import { Layout } from 'antd'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { useMatches, useParams } from 'react-router-dom'
+import { useMatches } from 'react-router-dom'
 import bg from '@/assets/images/gradient-container-bg.png'
 import type { RouteHandle } from '@/routes/types'
-import { usePreferenceStore } from '@/stores'
 import { useMicroAppStore } from '@/stores/microAppStore'
 import Header from '../../components/Header'
 import Sider from '../../components/Sider'
@@ -58,7 +57,7 @@ const Container = ({ children }: ContainerProps) => {
     hasSider = false,
     hasHeader = false,
     siderType = 'home',
-    headerType = 'micro-app',
+    headerType = 'home',
   } = layoutConfig || {}
 
   const headerHeight = 52
