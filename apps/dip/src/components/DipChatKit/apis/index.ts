@@ -1,6 +1,7 @@
 import { get, getCommonHttpHeaders, post } from '@/utils/http'
 import intl from 'react-intl-universal'
 import type {
+  DipChatKitCreateSessionKeyRequest,
   DipChatKitCreateSessionKeyResponse,
   DipChatKitDigitalHumanList,
   DipChatKitResponseRequestBody,
@@ -10,8 +11,14 @@ import type {
 const BASE = '/api/dip-studio/v1'
 const DEFAULT_STREAM_TIMEOUT = 600_000
 
-export const createChatSessionKey = (): Promise<DipChatKitCreateSessionKeyResponse> =>
-  post(`${BASE}/chat/session`) as Promise<DipChatKitCreateSessionKeyResponse>
+export const createChatSessionKey = (
+  agentId: string,
+): Promise<DipChatKitCreateSessionKeyResponse> =>
+  post(`${BASE}/chat/session`, {
+    body: {
+      agentId,
+    } satisfies DipChatKitCreateSessionKeyRequest,
+  }) as Promise<DipChatKitCreateSessionKeyResponse>
 
 export const getDigitalHumanList = (): Promise<DipChatKitDigitalHumanList> => {
   const p1 = get(`${BASE}/digital-human`)
@@ -201,7 +208,6 @@ const formatHttpErrorMessage = async (response: Response): Promise<string> => {
 }
 
 export async function* createDigitalHumanResponseSSE(
-  id: string,
   body: DipChatKitResponseRequestBody,
   options: DipChatKitResponseSSEOptions,
 ): AsyncGenerator<string, void, unknown> {
@@ -224,7 +230,7 @@ export async function* createDigitalHumanResponseSSE(
   }
 
   try {
-    const response = await fetch(buildFullRequestUrl(`${BASE}/digital-human/${id}/chat/responses`), {
+    const response = await fetch(buildFullRequestUrl(`${BASE}/chat/responses`), {
       method: 'POST',
       headers: {
         ...getCommonHttpHeaders(),

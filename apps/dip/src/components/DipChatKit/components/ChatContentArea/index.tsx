@@ -79,7 +79,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
       return cachedSessionKey
     }
 
-    const { sessionKey } = await createChatSessionKey()
+    const { sessionKey } = await createChatSessionKey(employeeId)
     if (!sessionKey) {
       throw new Error(
         intl.get('dipChatKit.missingSessionKey').d('创建会话失败，未返回有效 sessionKey') as string,
@@ -95,7 +95,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
       const employeeId = resolveEmployeeId(payload)
       const sessionKey = await ensureSessionKey(employeeId)
 
-      return createDigitalHumanResponseSSE(employeeId, { input: payload.content }, { sessionKey })
+      return createDigitalHumanResponseSSE({ input: payload.content }, { sessionKey })
     },
     [ensureSessionKey, resolveEmployeeId],
   )

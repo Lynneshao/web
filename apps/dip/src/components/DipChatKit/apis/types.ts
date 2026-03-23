@@ -2,6 +2,10 @@ export interface DipChatKitCreateSessionKeyResponse {
   sessionKey: string
 }
 
+export interface DipChatKitCreateSessionKeyRequest {
+  agentId: string
+}
+
 export interface DipChatKitDigitalHuman {
   id: string
   name: string
