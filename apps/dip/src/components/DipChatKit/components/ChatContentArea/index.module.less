@@ -1,0 +1,64 @@
+﻿.root {
+  height: 100%;
+  position: relative;
+}
+
+.scrollArea {
+  height: 100%;
+}
+
+.messageList {
+  padding: 16px 16px 220px;
+}
+
+.messageListContent {
+  width: 100%;
+  max-width: 728px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.emptyState {
+  color: #667085;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 0;
+}
+
+.inputArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 16px 16px;
+  background: linear-gradient(180deg, rgba(245, 247, 251, 0) 0%, #f5f7fb 20%, #f5f7fb 100%);
+}
+
+.inputContent {
+  width: 100%;
+  max-width: 728px;
+  margin: 0 auto;
+}
+
+.inputInner {
+  box-shadow: 0 8px 24px -16px rgba(16, 24, 40, 0.38);
+  border-radius: 12px;
+}
+
+.backToBottomWrap {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 728px;
+  bottom: calc(100% + 16px);
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.backToBottomBtn {
+  pointer-events: auto;
+}

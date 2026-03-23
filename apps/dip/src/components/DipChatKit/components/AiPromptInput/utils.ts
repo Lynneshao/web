@@ -148,7 +148,10 @@ export const getTextAreaCaretPosition = (
   const computedStyle = window.getComputedStyle(textArea)
 
   for (const key of mirrorStyleKeys) {
-    mirror.style[key] = computedStyle[key]
+    const styleKey = key as string
+    ;(mirror.style as unknown as Record<string, string>)[styleKey] = (
+      computedStyle as unknown as Record<string, string>
+    )[styleKey]
   }
 
   mirror.style.position = 'absolute'

@@ -1,0 +1,89 @@
+﻿import { CopyOutlined, EditOutlined } from '@ant-design/icons'
+import { Bubble, FileCard } from '@ant-design/x'
+import { Col, Row, Tooltip } from 'antd'
+import clsx from 'clsx'
+import isEmpty from 'lodash/isEmpty'
+import type React from 'react'
+import { useState } from 'react'
+import ResizeObserver from '@/components/ResizeObserver'
+import MessageActions from '../MessageActions'
+import styles from './index.module.less'
+import type { UserQuestionBubbleProps } from './types'
+
+const UserQuestionBubble: React.FC<UserQuestionBubbleProps> = ({
+  question,
+  attachments,
+  onEdit,
+  onCopy,
+}) => {
+  const [fileColSpan, setFileColSpan] = useState(12)
+
+  return (
+    <div className={clsx('UserQuestionBubble', styles.root)}>
+      {!isEmpty(attachments) && (
+        <div className={styles.fileListWrap}>
+          <ResizeObserver
+            onResize={({ width }) => {
+              if (width < 400) {
+                setFileColSpan(24)
+              } else {
+                setFileColSpan(12)
+              }
+            }}
+          >
+            <div className={styles.fileList}>
+              <Row gutter={[8, 8]}>
+                {attachments.map((attachment) => {
+                  return (
+                    <Col key={attachment.uid} span={fileColSpan}>
+                      <Tooltip title={attachment.name}>
+                        <span className={styles.fileCardTooltipTarget}>
+                          <FileCard
+                            className={styles.fileCard}
+                            classNames={{ name: styles.fileCardName }}
+                            name={attachment.name}
+                            byte={attachment.size}
+                            size="small"
+                          />
+                        </span>
+                      </Tooltip>
+                    </Col>
+                  )
+                })}
+              </Row>
+            </div>
+          </ResizeObserver>
+        </div>
+      )}
+
+      <Bubble
+        className={styles.bubble}
+        content={<span className={styles.questionText}>{question}</span>}
+        shape="corner"
+        placement="end"
+        footer={
+          <div className={styles.actionsWrap}>
+            <MessageActions
+              actions={[
+                {
+                  key: 'edit-question',
+                  title: '编辑问题',
+                  icon: <EditOutlined />,
+                  onClick: onEdit,
+                },
+                {
+                  key: 'copy-question',
+                  title: '复制问题',
+                  icon: <CopyOutlined />,
+                  onClick: onCopy,
+                },
+              ]}
+            />
+          </div>
+        }
+      />
+    </div>
+  )
+}
+
+export default UserQuestionBubble

@@ -9,6 +9,7 @@ const AppStore = lazy(() => import('../pages/AppStore'))
 const Home = lazy(() => import('../pages/Home'))
 const WorkPlan = lazy(() => import('../pages/WorkPlan'))
 const WorkPlanDetail = lazy(() => import('../pages/WorkPlan/Details'))
+const ChatKitTest = lazy(() => import('../pages/ChatKitTest'))
 const History = lazy(() => import('../pages/DigitalHuman/History'))
 const HistoryItem = lazy(() => import('../pages/DigitalHuman/History/HistoryItem'))
 const DigitalHumanManagement = lazy(() => import('../pages/DigitalHuman/Management'))
@@ -29,6 +30,22 @@ export const routeConfigs: RouteConfig[] = [
     requiredRoleIds: [],
     element: <Home />,
     showInSidebar: true,
+    handle: {
+      layout: {
+        hasSider: true,
+        hasHeader: false,
+        siderType: 'home',
+        headerType: 'micro-app',
+      },
+    },
+  },
+  {
+    path: 'chat-kit-test',
+    key: 'chat-kit-test',
+    label: 'ChatKitTest',
+    requiredRoleIds: [],
+    element: <ChatKitTest />,
+    showInSidebar: false,
     handle: {
       layout: {
         hasSider: true,

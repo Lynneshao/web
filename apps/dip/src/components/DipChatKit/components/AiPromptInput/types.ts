@@ -2,7 +2,7 @@ import type { SenderProps } from '@ant-design/x'
 import type { ReactNode } from 'react'
 
 export interface AiPromptMentionOption {
-  id: string
+  value: string
   label: string
   description?: string
   avatar?: ReactNode
@@ -15,7 +15,7 @@ export interface TriggerCharacterItem {
 
 export interface AiPromptSubmitPayload {
   content: string
-  mentions: AiPromptMentionOption[]
+  employees: AiPromptMentionOption[]
   files: File[]
 }
 
@@ -34,15 +34,16 @@ export interface MentionTriggerMatch {
 export interface AiPromptInputProps {
   value?: string
   defaultValue?: string
+  defaultEmployeeValue?: string
   autoSize?: SenderProps['autoSize']
   onChange?: (value: string) => void
   onSubmit?: (payload: AiPromptSubmitPayload) => void
   onAttach?: (files: File[]) => void
-  onMentionSelect?: (item: AiPromptMentionOption) => void
-  mentionOptions?: AiPromptMentionOption[]
+  onEmployeeSelect?: (item: AiPromptMentionOption) => void
+  employeeOptions?: AiPromptMentionOption[]
   placeholder?: string
-  mentionPanelTitle?: string
-  mentionButtonLabel?: string
+  employeePanelTitle?: string
+  employeeButtonLabel?: string
   attachButtonTitle?: string
   sendButtonTitle?: string
   triggerCharacter?: false | TriggerCharacterItem[]

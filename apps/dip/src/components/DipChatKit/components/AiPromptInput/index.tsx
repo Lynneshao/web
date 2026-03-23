@@ -22,6 +22,7 @@ import intl from 'react-intl-universal'
 import IconFont from '@/components/IconFont'
 import ResizeObserver from '@/components/ResizeObserver'
 import useResizeObserver from '@/hooks/useResizeObserver'
+import { useLanguageStore } from '@/stores/languageStore'
 import styles from './index.module.less'
 import type {
   AiPromptInputProps,
@@ -56,15 +57,16 @@ const uploadValidateMessageKey = 'ai-prompt-upload-validate'
 const AiPromptInput: React.FC<AiPromptInputProps> = ({
   value,
   defaultValue = '',
+  defaultEmployeeValue,
   autoSize = { minRows: 2, maxRows: 4 },
   onChange,
   onSubmit,
   onAttach,
-  onMentionSelect,
-  mentionOptions = [],
+  onEmployeeSelect,
+  employeeOptions = [],
   placeholder,
-  mentionPanelTitle,
-  mentionButtonLabel,
+  employeePanelTitle,
+  employeeButtonLabel,
   attachButtonTitle,
   sendButtonTitle,
   triggerCharacter = false,
@@ -72,6 +74,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   loading = false,
   className,
 }) => {
+  const language = useLanguageStore((state) => state.language)
   const senderRef = useRef<GetRef<typeof Sender>>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -84,15 +87,50 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const [innerValue, setInnerValue] = useState(defaultValue)
   const [attachments, setAttachments] = useState<File[]>([])
   const [fileColSpan, setFileColSpan] = useState(6)
-  const [mentions, setMentions] = useState<AiPromptMentionOption[]>([])
+  const [employees, setEmployees] = useState<AiPromptMentionOption[]>([])
 
   const mergedValue = value ?? innerValue
   const canInteract = !(disabled || loading)
-  const resolvedMentionPanelTitle = mentionPanelTitle ?? intl.get('aiPromptInput.mentionPanelTitle')
-  const resolvedMentionButtonLabel = mentionButtonLabel ?? intl.get('aiPromptInput.mentionButton')
+  const resolvedEmployeePanelTitle = employeePanelTitle ?? intl.get('aiPromptInput.mentionPanelTitle')
+  const resolvedEmployeeButtonLabel = employeeButtonLabel ?? intl.get('aiPromptInput.mentionButton')
   const resolvedAttachButtonTitle = attachButtonTitle ?? intl.get('aiPromptInput.attach')
   const resolvedSendButtonTitle = sendButtonTitle ?? intl.get('aiPromptInput.send')
   const resolvedRemoveFileTitle = intl.get('aiPromptInput.removeFile')
+  const builtInEmployeeOptions = useMemo<AiPromptMentionOption[]>(
+    () => [
+      {
+        value: 'plan-collaboration',
+        label: intl.get('home.mention.planCollaborationAssistant'),
+      },
+      {
+        value: 'finance-audit',
+        label: intl.get('home.mention.financeAuditAssistant'),
+      },
+      {
+        value: 'customer-service',
+        label: intl.get('home.mention.customerServiceAudit'),
+      },
+      {
+        value: 'data-compliance',
+        label: intl.get('home.mention.dataComplianceAuditor'),
+      },
+      {
+        value: 'logistics-dispatch',
+        label: intl.get('home.mention.logisticsDispatchAssistant'),
+      },
+      {
+        value: 'vendor-risk',
+        label: intl.get('home.mention.vendorRiskMonitor'),
+      },
+    ],
+    [language],
+  )
+  const resolvedEmployeeOptions = useMemo(() => {
+    if (employeeOptions.length > 0) {
+      return employeeOptions
+    }
+    return builtInEmployeeOptions
+  }, [employeeOptions])
 
   useEffect(() => {
     if (value !== undefined) {
@@ -100,9 +138,21 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     }
   }, [value])
 
+  useEffect(() => {
+    if (!resolvedEmployeeOptions.length) return
+    setEmployees((prevEmployees) => {
+      if (prevEmployees.length > 0) return prevEmployees
+      const defaultEmployee =
+        resolvedEmployeeOptions.find((item) => item.value === defaultEmployeeValue) ??
+        resolvedEmployeeOptions[0]
+      if (!defaultEmployee) return prevEmployees
+      return [defaultEmployee]
+    })
+  }, [defaultEmployeeValue, resolvedEmployeeOptions])
+
   const buttonMentionOptionMap = useMemo(() => {
-    return new Map(mentionOptions.map((item) => [item.id, item]))
-  }, [mentionOptions])
+    return new Map(resolvedEmployeeOptions.map((item) => [item.value, item]))
+  }, [resolvedEmployeeOptions])
 
   const keyboardTriggerItems = useMemo(() => {
     if (!Array.isArray(triggerCharacter)) return []
@@ -134,7 +184,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   }, [keyboardMentionBaseOptions, mentionQuery])
 
   const keyboardMentionOptionMap = useMemo(() => {
-    return new Map(keyboardMentionOptions.map((item) => [item.id, item]))
+    return new Map(keyboardMentionOptions.map((item) => [item.value, item]))
   }, [keyboardMentionOptions])
 
   const buildSuggestionItems = (
@@ -143,7 +193,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     return options.map((item, index) => {
       const color = mentionAvatarColors[index % mentionAvatarColors.length]
       return {
-        key: item.id,
+        key: item.value,
         label: (
           <span className={styles.mentionMenuItem}>
             <span className={styles.mentionIcon}>
@@ -169,8 +219,8 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   }
 
   const buttonSuggestionItems = useMemo(() => {
-    return buildSuggestionItems(mentionOptions)
-  }, [mentionOptions])
+    return buildSuggestionItems(resolvedEmployeeOptions)
+  }, [resolvedEmployeeOptions])
 
   const keyboardSuggestionItems = useMemo(() => {
     return buildSuggestionItems(keyboardMentionOptions)
@@ -282,14 +332,14 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     if (!(hasContentOrFiles && canInteract)) {
       return
     }
-    if (!mentions.length) {
+    if (!employees.length) {
       message.warning('请先选择一个数字员工')
       return
     }
 
     const payload: AiPromptSubmitPayload = {
       content: nextContent,
-      mentions,
+      employees,
       files: attachments,
     }
 
@@ -309,17 +359,17 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const handleMentionSelect = (option: AiPromptMentionOption) => {
     if (!canInteract) return
 
-    onMentionSelect?.(option)
+    onEmployeeSelect?.(option)
 
     if (triggerSource === 'button') {
-      setMentions([option])
+      setEmployees([option])
 
       closeMentionPanel()
       senderRef.current?.focus?.()
       return
     }
 
-    setMentions([option])
+    setEmployees([option])
 
     const mentionCharacter = triggerSource === 'keyboard' ? (activeKeyboardCharacter ?? '@') : '@'
     const replaceTriggerCharacter = triggerSource === 'keyboard' ? mentionCharacter : undefined
@@ -328,10 +378,10 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
       [
         {
           type: 'tag',
-          key: `mention_${option.id}_${Date.now()}`,
+          key: `mention_${option.value}_${Date.now()}`,
           props: {
             label: `${mentionCharacter}${option.label}`,
-            value: option.id,
+            value: option.value,
           },
           formatResult: (text) => `${mentionCharacter}${text}`,
         },
@@ -344,8 +394,8 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     senderRef.current?.focus?.()
   }
 
-  const handleMentionRemove = (mentionId: string) => {
-    setMentions((prev) => prev.filter((item) => item.id !== mentionId))
+  const handleMentionRemove = (employeeValue: string) => {
+    setEmployees((prev) => prev.filter((item) => item.value !== employeeValue))
   }
 
   const handleMentionMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -446,7 +496,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
         onMouseDownCapture={markMentionMenuMouseDown}
         onMouseUpCapture={clearMentionMenuMouseDown}
       >
-        <div className={styles.mentionTitle}>{resolvedMentionPanelTitle}</div>
+        <div className={styles.mentionTitle}>{resolvedEmployeePanelTitle}</div>
         {menuNode}
       </div>
     )
@@ -653,11 +703,11 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                     menu={buttonMentionMenu}
                     popupRender={renderMentionPopup}
                   >
-                    <Tooltip title={resolvedMentionButtonLabel}>
+                    <Tooltip title={resolvedEmployeeButtonLabel}>
                       <span>
                         <Button
                           type="text"
-                          aria-label={resolvedMentionButtonLabel}
+                          aria-label={resolvedEmployeeButtonLabel}
                           disabled={!(canInteract && buttonSuggestionItems.length)}
                           onClick={() => openMentionPanel('button')}
                         >
@@ -690,17 +740,17 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                     </Upload>
                   </Tooltip>
 
-                  {!!mentions.length && (
+                  {!!employees.length && (
                     <Flex align="center" gap={8} className={styles.mentionTags}>
-                      {mentions.map((item, index) => (
+                      {employees.map((item, index) => (
                         <Tag
-                          key={`${item.id}_${index}`}
+                          key={`${item.value}_${index}`}
                           closable
                           className={styles.mentionTag}
                           onClose={(event) => {
                             event.preventDefault()
                             event.stopPropagation()
-                            handleMentionRemove(item.id)
+                            handleMentionRemove(item.value)
                           }}
                         >
                           <span className={styles.mentionTagContent}>
