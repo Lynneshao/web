@@ -19,10 +19,10 @@ import uniq from 'lodash/uniq'
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import intl from 'react-intl-universal'
+import { getDigitalHumanList } from '../../apis'
 import IconFont from '@/components/IconFont'
 import ResizeObserver from '@/components/ResizeObserver'
 import useResizeObserver from '@/hooks/useResizeObserver'
-import { useLanguageStore } from '@/stores/languageStore'
 import styles from './index.module.less'
 import type {
   AiPromptInputProps,
@@ -74,7 +74,6 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   loading = false,
   className,
 }) => {
-  const language = useLanguageStore((state) => state.language)
   const senderRef = useRef<GetRef<typeof Sender>>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -88,6 +87,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const [attachments, setAttachments] = useState<File[]>([])
   const [fileColSpan, setFileColSpan] = useState(6)
   const [employees, setEmployees] = useState<AiPromptMentionOption[]>([])
+  const [fetchedEmployeeOptions, setFetchedEmployeeOptions] = useState<AiPromptMentionOption[]>([])
 
   const mergedValue = value ?? innerValue
   const canInteract = !(disabled || loading)
@@ -96,47 +96,54 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const resolvedAttachButtonTitle = attachButtonTitle ?? intl.get('aiPromptInput.attach')
   const resolvedSendButtonTitle = sendButtonTitle ?? intl.get('aiPromptInput.send')
   const resolvedRemoveFileTitle = intl.get('aiPromptInput.removeFile')
-  const builtInEmployeeOptions = useMemo<AiPromptMentionOption[]>(
-    () => [
-      {
-        value: 'plan-collaboration',
-        label: intl.get('home.mention.planCollaborationAssistant'),
-      },
-      {
-        value: 'finance-audit',
-        label: intl.get('home.mention.financeAuditAssistant'),
-      },
-      {
-        value: 'customer-service',
-        label: intl.get('home.mention.customerServiceAudit'),
-      },
-      {
-        value: 'data-compliance',
-        label: intl.get('home.mention.dataComplianceAuditor'),
-      },
-      {
-        value: 'logistics-dispatch',
-        label: intl.get('home.mention.logisticsDispatchAssistant'),
-      },
-      {
-        value: 'vendor-risk',
-        label: intl.get('home.mention.vendorRiskMonitor'),
-      },
-    ],
-    [language],
-  )
   const resolvedEmployeeOptions = useMemo(() => {
     if (employeeOptions.length > 0) {
       return employeeOptions
     }
-    return builtInEmployeeOptions
-  }, [employeeOptions])
+    return fetchedEmployeeOptions
+  }, [employeeOptions, fetchedEmployeeOptions])
 
   useEffect(() => {
     if (value !== undefined) {
       setInnerValue(value)
     }
   }, [value])
+
+  useEffect(() => {
+    let disposed = false
+
+    if (employeeOptions.length > 0) {
+      setFetchedEmployeeOptions([])
+      return () => {
+        disposed = true
+      }
+    }
+
+    const loadDigitalHumanList = async () => {
+      try {
+        const list = await getDigitalHumanList()
+        if (disposed) return
+
+        const options = list
+          .filter((item) => item.id && item.name)
+          .map((item) => ({
+            value: item.id,
+            label: item.name,
+          }))
+        setFetchedEmployeeOptions(options)
+      } catch {
+        if (disposed) return
+        setFetchedEmployeeOptions([])
+        message.error('获取数字员工列表失败，请稍后重试')
+      }
+    }
+
+    void loadDigitalHumanList()
+
+    return () => {
+      disposed = true
+    }
+  }, [employeeOptions.length])
 
   useEffect(() => {
     if (!resolvedEmployeeOptions.length) return

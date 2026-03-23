@@ -98,6 +98,7 @@ const DipChatKitStoreProvider: React.FC<PropsWithChildren<DipChatKitStoreProvide
     const nextTurn: DipChatKitMessageTurn = {
       id: turnId,
       question: payload.content,
+      questionEmployees: payload.employees,
       questionAttachments: mapFilesToAttachments(payload.files),
       answerMarkdown: '',
       answerLoading: true,

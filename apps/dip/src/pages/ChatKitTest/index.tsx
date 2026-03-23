@@ -23,6 +23,7 @@ const buildDefaultMessageTurns: BuildDefaultMessageTurns = (submitData) => {
     {
       id: `turn_init_${Date.now()}`,
       question: submitData.content,
+      questionEmployees: submitData.employees,
       questionAttachments,
       answerMarkdown: '',
       answerLoading: false,
@@ -51,10 +52,7 @@ const ChatKitTest = () => {
   return (
     <div className={clsx('ChatKitTest', styles.page)}>
       <div className={styles.chatKitWrap}>
-        <DipChatKit
-          defaultMessageTurns={defaultMessageTurns}
-          defaultEmployeeValue={defaultEmployeeValue}
-        />
+        <DipChatKit defaultMessageTurns={defaultMessageTurns} defaultEmployeeValue={defaultEmployeeValue} />
       </div>
     </div>
   )

@@ -5,9 +5,10 @@ import isEmpty from 'lodash/isEmpty'
 import isString from 'lodash/isString'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createChatSessionKey, createDigitalHumanResponseSSE } from '../../apis'
 import { useDipChatKitStore } from '../../store'
 import type { DipChatKitSendHandler } from '../../types'
-import { isAsyncIterable, normalizeStreamChunk, splitTextToChunks, wait } from '../../utils'
+import { isAsyncIterable, normalizeStreamChunk } from '../../utils'
 import AiPromptInput from '../AiPromptInput'
 import type { AiPromptSubmitPayload } from '../AiPromptInput/types'
 import ConversationTurn from './ConversationTurn'
@@ -15,7 +16,7 @@ import ScrollContainer from '../ScrollContainer'
 import type { ScrollContainerRef } from '../ScrollContainer/types'
 import styles from './index.module.less'
 import type { ChatContentAreaProps } from './types'
-import { buildRegeneratePayload, getFallbackAnswer } from './utils'
+import { buildRegeneratePayload } from './utils'
 
 const ChatContentArea: React.FC<ChatContentAreaProps> = ({
   employeeOptions,
@@ -26,6 +27,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('')
   const scrollRef = useRef<ScrollContainerRef | null>(null)
+  const sessionKeyMapRef = useRef<Record<string, string>>({})
   const {
     dipChatKitStore: { messageTurns, scroll },
     appendQuestionTurn,
@@ -48,6 +50,47 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
       .map((turn) => `${turn.id}:${turn.answerMarkdown.length}:${turn.answerStreaming ? '1' : '0'}`)
       .join('|')
   }, [messageTurns])
+
+  const resolveEmployeeId = useCallback(
+    (payload: AiPromptSubmitPayload): string => {
+      const payloadEmployeeId = payload.employees[0]?.value
+      if (payloadEmployeeId) {
+        return payloadEmployeeId
+      }
+
+      if (defaultEmployeeValue) {
+        return defaultEmployeeValue
+      }
+
+      throw new Error('未获取到数字员工 ID，请先选择数字员工后再发送')
+    },
+    [defaultEmployeeValue],
+  )
+
+  const ensureSessionKey = useCallback(async (employeeId: string): Promise<string> => {
+    const cachedSessionKey = sessionKeyMapRef.current[employeeId]
+    if (cachedSessionKey) {
+      return cachedSessionKey
+    }
+
+    const { sessionKey } = await createChatSessionKey()
+    if (!sessionKey) {
+      throw new Error('创建会话失败，未返回有效 sessionKey')
+    }
+
+    sessionKeyMapRef.current[employeeId] = sessionKey
+    return sessionKey
+  }, [])
+
+  const runBuiltInSend = useCallback<DipChatKitSendHandler>(
+    async (payload) => {
+      const employeeId = resolveEmployeeId(payload)
+      const sessionKey = await ensureSessionKey(employeeId)
+
+      return createDigitalHumanResponseSSE(employeeId, { input: payload.content }, { sessionKey })
+    },
+    [ensureSessionKey, resolveEmployeeId],
+  )
 
   const consumeSendResult = useCallback(
     async (turnId: string, result: Awaited<ReturnType<DipChatKitSendHandler>>) => {
@@ -75,30 +118,12 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
     [appendAnswerChunk, finishAnswerStream],
   )
 
-  const runFallbackStream = useCallback(
-    async (turnId: string, question: string) => {
-      const fallbackAnswer = getFallbackAnswer(question)
-      const chunks = splitTextToChunks(fallbackAnswer, 18)
-      for (const chunk of chunks) {
-        appendAnswerChunk(turnId, chunk)
-        await wait(70)
-      }
-      finishAnswerStream(turnId)
-    },
-    [appendAnswerChunk, finishAnswerStream],
-  )
-
   const runSendFlow = useCallback(
     async (payload: AiPromptSubmitPayload, turnId: string, regenerate: boolean) => {
-      const handler = regenerate ? onRegenerate || onSend : onSend
+      const handler = regenerate ? onRegenerate || onSend || runBuiltInSend : onSend || runBuiltInSend
       startAnswerStream(turnId, regenerate)
 
       try {
-        if (!handler) {
-          await runFallbackStream(turnId, payload.content)
-          return
-        }
-
         const result = await handler(payload, { turnId, regenerate })
         await consumeSendResult(turnId, result)
       } catch (error) {
@@ -107,7 +132,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
         message.error(errorMessage)
       }
     },
-    [consumeSendResult, failAnswerStream, onRegenerate, onSend, runFallbackStream, startAnswerStream],
+    [consumeSendResult, failAnswerStream, onRegenerate, onSend, runBuiltInSend, startAnswerStream],
   )
 
   useEffect(() => {

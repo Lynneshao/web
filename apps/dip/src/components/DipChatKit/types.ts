@@ -18,6 +18,7 @@ export interface DipChatKitPreviewPayload {
 export interface DipChatKitMessageTurn {
   id: string
   question: string
+  questionEmployees?: AiPromptMentionOption[]
   questionAttachments: DipChatKitAttachment[]
   answerMarkdown: string
   answerLoading: boolean
