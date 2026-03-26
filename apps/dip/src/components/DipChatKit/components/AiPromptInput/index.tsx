@@ -740,11 +740,15 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
             const { SendButton, LoadingButton } = info.components
 
             return (
-              <Flex align="center" justify="space-between" className={styles.footer}>
+              <Flex
+                align="center"
+                justify="space-between"
+                className={styles.footer}
+              >
                 <Flex align="center" className={styles.leftActions}>
                   {showEmployeeSelector && (
                     <Dropdown
-                      trigger={['click']}
+                      trigger={["click"]}
                       placement="topLeft"
                       open={isButtonMentionOpen}
                       onOpenChange={handleButtonDropdownOpenChange}
@@ -756,11 +760,17 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                           <Button
                             type="text"
                             aria-label={resolvedEmployeeButtonLabel}
-                            disabled={!(canEdit && buttonSuggestionItems.length)}
-                            onClick={() => openMentionPanel('button')}
-                          >
-                            @
-                          </Button>
+                            disabled={
+                              !(canEdit && buttonSuggestionItems.length)
+                            }
+                            onClick={() => openMentionPanel("button")}
+                            icon={
+                              <IconFont
+                                type="icon-at"
+                                className={styles.actionIcon}
+                              />
+                            }
+                          />
                         </span>
                       </Tooltip>
                     </Dropdown>
@@ -773,18 +783,23 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                       beforeUpload={() => false}
                       disabled={!canEdit}
                       onChange={({ file }) => {
-                        const rawFile = getRawUploadFile(file)
+                        const rawFile = getRawUploadFile(file);
                         if (rawFile) {
-                          handleFileChange([rawFile])
+                          handleFileChange([rawFile]);
                         }
-                        senderRef.current?.focus?.()
+                        senderRef.current?.focus?.();
                       }}
                     >
                       <Button
                         type="text"
                         aria-label={resolvedAttachButtonTitle}
                         disabled={!canEdit}
-                        icon={<IconFont type="icon-attachment" className={styles.actionIcon} />}
+                        icon={
+                          <IconFont
+                            type="icon-attachment"
+                            className={styles.actionIcon}
+                          />
+                        }
                       />
                     </Upload>
                   </Tooltip>
@@ -797,9 +812,9 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                           closable
                           className={styles.mentionTag}
                           onClose={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            handleMentionRemove(item.value)
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleMentionRemove(item.value);
                           }}
                         >
                           <span className={styles.mentionTagContent}>
@@ -809,9 +824,13 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                                   size={18}
                                   style={{
                                     backgroundColor:
-                                      mentionAvatarColors[index % mentionAvatarColors.length].bg,
+                                      mentionAvatarColors[
+                                        index % mentionAvatarColors.length
+                                      ].bg,
                                     color:
-                                      mentionAvatarColors[index % mentionAvatarColors.length].fg,
+                                      mentionAvatarColors[
+                                        index % mentionAvatarColors.length
+                                      ].fg,
                                     fontSize: 11,
                                     flexShrink: 0,
                                   }}
@@ -820,7 +839,9 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                                 </Avatar>
                               )}
                             </span>
-                            <span className={styles.mentionTagLabel}>{item.label}</span>
+                            <span className={styles.mentionTagLabel}>
+                              {item.label}
+                            </span>
                           </span>
                         </Tag>
                       ))}
@@ -846,14 +867,19 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
                         type="primary"
                         shape="circle"
                         aria-label={resolvedSendButtonTitle}
-                        disabled={!(canSubmit && (mergedValue.trim() || attachments.length))}
+                        disabled={
+                          !(
+                            canSubmit &&
+                            (mergedValue.trim() || attachments.length)
+                          )
+                        }
                         icon={<SendOutlined />}
                       />
                     </span>
                   </Tooltip>
                 )}
               </Flex>
-            )
+            );
           }}
         />
       </div>

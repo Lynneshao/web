@@ -1,5 +1,7 @@
 import { CloseOutlined, DownloadOutlined } from '@ant-design/icons'
 import { CodeHighlighter } from '@ant-design/x'
+import XMarkdown from '@ant-design/x-markdown'
+import '@ant-design/x-markdown/dist/x-markdown.css'
 import { Avatar, Button, Segmented, Spin, Tooltip, message } from 'antd'
 import clsx from 'clsx'
 import type React from 'react'
@@ -10,7 +12,7 @@ import ScrollContainer from '../../ScrollContainer'
 import styles from './index.module.less'
 import type { PreviewArtifactProps } from './types'
 
-type ArtifactPreviewMode = 'text' | 'html' | 'image' | 'pdf'
+type ArtifactPreviewMode = 'text' | 'markdown' | 'html' | 'image' | 'pdf'
 type ArtifactPreviewTab = 'preview' | 'code'
 
 interface ArtifactPreviewState {
@@ -21,7 +23,8 @@ interface ArtifactPreviewState {
   blobUrl: string
 }
 
-const TEXT_EXTENSIONS = new Set(['txt', 'md', 'markdown', 'json', 'log', 'csv', 'xml', 'yaml', 'yml'])
+const TEXT_EXTENSIONS = new Set(['txt', 'json', 'log', 'csv', 'xml', 'yaml', 'yml'])
+const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
 const HTML_EXTENSIONS = new Set(['html', 'htm'])
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
 const PDF_EXTENSIONS = new Set(['pdf'])
@@ -35,6 +38,7 @@ const getFileExtension = (fileName: string): string => {
 
 const resolvePreviewMode = (fileName: string): ArtifactPreviewMode => {
   const ext = getFileExtension(fileName)
+  if (MARKDOWN_EXTENSIONS.has(ext)) return 'markdown'
   if (HTML_EXTENSIONS.has(ext)) return 'html'
   if (IMAGE_EXTENSIONS.has(ext)) return 'image'
   if (PDF_EXTENSIONS.has(ext)) return 'pdf'
@@ -44,6 +48,7 @@ const resolvePreviewMode = (fileName: string): ArtifactPreviewMode => {
 
 const getBlobMimeType = (mode: ArtifactPreviewMode, fileName: string): string => {
   if (mode === 'html') return 'text/html;charset=utf-8'
+  if (mode === 'markdown') return 'text/markdown;charset=utf-8'
   if (mode === 'text') return 'text/plain;charset=utf-8'
   if (mode === 'image') {
     const ext = getFileExtension(fileName)
@@ -126,7 +131,7 @@ const PreviewArtifact: React.FC<PreviewArtifactProps> = ({ payload, onClose }) =
     }
   }, [artifactInfo])
 
-  const canSwitchCodeTab = state.mode === 'html' || state.mode === 'text'
+  const canSwitchCodeTab = state.mode === 'html' || state.mode === 'markdown' || state.mode === 'text'
   const htmlSrcDoc = useMemo(() => {
     if (state.mode !== 'html') return ''
     return injectHtmlPreviewStyle(state.textContent)
@@ -208,7 +213,11 @@ const PreviewArtifact: React.FC<PreviewArtifactProps> = ({ payload, onClose }) =
 
     const loadPreview = async () => {
       try {
-        if (previewMeta.mode === 'html' || previewMeta.mode === 'text') {
+        if (
+          previewMeta.mode === 'html' ||
+          previewMeta.mode === 'markdown' ||
+          previewMeta.mode === 'text'
+        ) {
           const response = await getSessionArchiveSubpath(previewMeta.sessionKey, previewMeta.subpath, {
             responseType: 'text',
           })
@@ -358,11 +367,19 @@ const PreviewArtifact: React.FC<PreviewArtifactProps> = ({ payload, onClose }) =
     }
 
     if (activeTab === 'code' && canSwitchCodeTab) {
+      const codeLang =
+        state.mode === 'html' ? 'html' : state.mode === 'markdown' ? 'markdown' : 'text'
       return (
         <div className={styles.codeWrap}>
-          <CodeHighlighter lang={state.mode === 'html' ? 'html' : 'text'}>
-            {state.textContent}
-          </CodeHighlighter>
+          <CodeHighlighter lang={codeLang}>{state.textContent}</CodeHighlighter>
+        </div>
+      )
+    }
+
+    if (state.mode === 'markdown') {
+      return (
+        <div className={styles.markdownWrap}>
+          <XMarkdown className={styles.markdownPreview}>{state.textContent}</XMarkdown>
         </div>
       )
     }

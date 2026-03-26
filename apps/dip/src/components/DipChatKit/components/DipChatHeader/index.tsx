@@ -6,15 +6,15 @@ import type { DipChatHeaderProps } from './types'
 
 const DipChatHeader: React.FC<DipChatHeaderProps> = ({ title }) => {
   return (
-    <div className={clsx('DipChatHeader', styles.root)}>
+    <div className={clsx("DipChatHeader", styles.root)}>
       <div className={styles.titleWrap}>
-        <IconFont type="icon-dip-color-wendangxieru" className={styles.titleIcon} />
+        <IconFont type="icon-digital-human" className={styles.titleIcon} />
         <span className={styles.titleText} title={title}>
           {title}
         </span>
       </div>
     </div>
-  )
+  );
 }
 
 export default DipChatHeader

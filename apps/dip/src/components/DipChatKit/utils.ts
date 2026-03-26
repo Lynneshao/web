@@ -1,12 +1,11 @@
 ﻿import isEmpty from 'lodash/isEmpty'
 import isString from 'lodash/isString'
 import truncate from 'lodash/truncate'
-import intl from 'react-intl-universal'
 import type { AiPromptSubmitPayload } from './components/AiPromptInput/types'
 import type { DipChatKitMessageTurn } from './types'
 
 export const getConversationTitle = (messageTurns: DipChatKitMessageTurn[]): string => {
-  const defaultTitle = intl.get('dipChatKit.conversationTitle').d('对话 AI 生成') as string
+  const defaultTitle = ''
   if (isEmpty(messageTurns)) return defaultTitle
   const firstQuestion = messageTurns[0]?.question ?? ''
   if (!firstQuestion) return defaultTitle
