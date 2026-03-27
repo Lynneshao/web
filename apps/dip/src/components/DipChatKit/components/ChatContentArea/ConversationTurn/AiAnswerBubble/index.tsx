@@ -104,13 +104,32 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
 
   useEffect(() => {
     measureToolCardOverflow()
-    const rafId = window.requestAnimationFrame(measureToolCardOverflow)
+    const resizeObserver =
+      typeof window.ResizeObserver === 'function'
+        ? new window.ResizeObserver(() => {
+            measureToolCardOverflow()
+          })
+        : null
+    const observeToolCardBodies = () => {
+      if (!resizeObserver) return
+      Object.values(toolCardBodyRefMap.current).forEach((bodyElement) => {
+        if (bodyElement) {
+          resizeObserver.observe(bodyElement)
+        }
+      })
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      observeToolCardBodies()
+      measureToolCardOverflow()
+    })
     const handleWindowResize = () => {
       measureToolCardOverflow()
     }
 
     window.addEventListener('resize', handleWindowResize)
     return () => {
+      resizeObserver?.disconnect()
       window.cancelAnimationFrame(rafId)
       window.removeEventListener('resize', handleWindowResize)
     }
