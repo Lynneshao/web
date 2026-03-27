@@ -1,0 +1,105 @@
+.page {
+  height: 100vh;
+  background: url("./bg.png") center center / cover no-repeat;
+  padding: 28px 20px 20px;
+  box-sizing: border-box;
+  overflow: hidden auto;
+}
+
+.content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  width: 404px;
+  height: 560px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logoBlock {
+  margin-top: 68px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logoIcon {
+  width: 150px;
+  height: 79px;
+  color: #2d6de3;
+}
+
+.logoText {
+  margin-top: 8px;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+  transform: scale(0.34);
+  transform-origin: top center;
+  color: #3d3d3d;
+  height: 14px;
+}
+
+.form {
+  width: 300px;
+  margin-top: 60px;
+}
+
+.input {
+  height: 34px;
+  border-bottom: 1px solid #ececec;
+  border-radius: 0;
+  margin-bottom: 8px;
+
+  :global(.ant-input),
+  :global(.ant-input-password input) {
+    font-size: 12px;
+    color: #666;
+  }
+
+  :global(.ant-input::placeholder),
+  :global(.ant-input-password input::placeholder) {
+    color: #b9b9b9;
+  }
+}
+
+.inputIcon {
+  margin-right: 8px;
+  font-size: 16px;
+  color: #4a4a4a;
+}
+
+.checkbox {
+  margin-top: 6px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #333;
+}
+
+.agreement {
+  margin-top: auto;
+  margin-bottom: 24px;
+  font-size: 12px;
+  color: #222;
+
+  a {
+    color: #2d6de3;
+    text-decoration: none;
+  }
+}
+
+.footer {
+  margin-top: 40px;
+  font-size: 14px;
+  line-height: 1;
+}
