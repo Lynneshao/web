@@ -95,6 +95,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const cardRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const keyboardOpenRafRef = useRef<number | null>(null)
+  const suppressNextSubmitRef = useRef(false)
   const caretSnapshotRef = useRef<CaretSnapshot | null>(null)
   const isMentionMenuMouseDownRef = useRef(false)
   const latestTextValueRef = useRef(defaultValue)
@@ -102,6 +103,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   const [keyboardMentionOpen, setKeyboardMentionOpen] = useState(false)
   const [activeKeyboardCharacter, setActiveKeyboardCharacter] = useState<string | null>(null)
   const [mentionQuery, setMentionQuery] = useState('')
+  const [keyboardActiveIndex, setKeyboardActiveIndex] = useState(-1)
   const [cursorAnchor, setCursorAnchor] = useState<CursorAnchorPosition>({ left: 0, top: 0 })
   const [innerValue, setInnerValue] = useState(defaultValue)
   const [attachments, setAttachments] = useState<File[]>([])
@@ -343,6 +345,9 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     return buildSuggestionItems(resolvedEmployeeOptions)
   }, [resolvedEmployeeOptions])
 
+  const keyboardActiveOption = keyboardMentionOptions[keyboardActiveIndex]
+  const keyboardActiveKey = keyboardActiveOption?.value
+
   const keyboardSuggestionItems = useMemo(() => {
     return buildSuggestionItems(keyboardMentionOptions)
   }, [keyboardMentionOptions])
@@ -413,6 +418,7 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     setKeyboardMentionOpen(false)
     setActiveKeyboardCharacter(null)
     setMentionQuery('')
+    setKeyboardActiveIndex(-1)
   }
 
   const openKeyboardMentionPanel = () => {
@@ -435,6 +441,13 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     setButtonMentionOpen(false)
     closeKeyboardMentionPanel()
     isMentionMenuMouseDownRef.current = false
+  }
+
+  const suppressSubmitForCurrentFrame = () => {
+    suppressNextSubmitRef.current = true
+    requestAnimationFrame(() => {
+      suppressNextSubmitRef.current = false
+    })
   }
 
   const captureCaretSnapshot = () => {
@@ -545,15 +558,37 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   }
 
   const handleSubmit: NonNullable<SenderProps['onSubmit']> = (content) => {
+    if (suppressNextSubmitRef.current) {
+      suppressNextSubmitRef.current = false
+      return
+    }
+
     const nextContent = content.trim()
     const hasContentOrFiles = Boolean(nextContent || attachments.length)
     if (!(hasContentOrFiles && canSubmit)) {
       return
     }
 
+    const slotConfigFromSender = senderRef.current?.getValue?.().slotConfig
+    const slotEmployee = (() => {
+      const slot = slotConfigFromSender?.find((item) => item.key === employeeSlotKey)
+      if (!(slot && 'props' in slot)) return undefined
+
+      const slotEmployeeValue =
+        (slot.props as { employeeValue?: string } | undefined)?.employeeValue?.trim() ?? ''
+      if (!slotEmployeeValue) return undefined
+
+      return buttonMentionOptionMap.get(slotEmployeeValue) ?? {
+        value: slotEmployeeValue,
+        label: slotEmployeeValue,
+      }
+    })()
+
     const submitEmployees =
       employees.length > 0
         ? employees
+        : slotEmployee
+          ? [slotEmployee]
         : normalizedAssignEmployeeValue
           ? [{ value: normalizedAssignEmployeeValue, label: normalizedAssignEmployeeValue }]
           : []
@@ -765,6 +800,34 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
   }, [keyboardMentionOpen, keyboardSuggestionItems.length])
 
   useEffect(() => {
+    if (!keyboardMentionOpen) {
+      setKeyboardActiveIndex(-1)
+      return
+    }
+
+    if (!keyboardMentionOptions.length) {
+      setKeyboardActiveIndex(-1)
+      return
+    }
+
+    if (showEmployeeSelector && activeKeyboardCharacter === '@' && selectedEmployeeKey) {
+      const selectedIndex = keyboardMentionOptions.findIndex((item) => item.value === selectedEmployeeKey)
+      if (selectedIndex >= 0) {
+        setKeyboardActiveIndex(selectedIndex)
+        return
+      }
+    }
+
+    setKeyboardActiveIndex(0)
+  }, [
+    activeKeyboardCharacter,
+    keyboardMentionOpen,
+    keyboardMentionOptions,
+    selectedEmployeeKey,
+    showEmployeeSelector,
+  ])
+
+  useEffect(() => {
     if (keyboardMentionOpen && !keyboardTriggerCharacters.length) {
       closeKeyboardMentionPanel()
     }
@@ -838,10 +901,21 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     onClick: handleButtonMentionMenuClick,
   }
 
-  const keyboardSelectedKeys =
-    showEmployeeSelector && activeKeyboardCharacter === '@' && selectedEmployeeKey
-      ? [selectedEmployeeKey]
-      : []
+  const keyboardSelectedKeys = (() => {
+    if (!(showEmployeeSelector && activeKeyboardCharacter === '@')) {
+      return []
+    }
+
+    if (keyboardActiveKey) {
+      return [keyboardActiveKey]
+    }
+
+    if (selectedEmployeeKey) {
+      return [selectedEmployeeKey]
+    }
+
+    return []
+  })()
 
   const keyboardMentionMenu = {
     items: keyboardSuggestionItems,
@@ -1015,6 +1089,55 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
             }
           }}
           onKeyDown={(event) => {
+            if (keyboardMentionOpen && event.key === 'Enter') {
+              event.preventDefault()
+              event.stopPropagation()
+            }
+
+            const isKeyboardEmployeeMenuOpen =
+              keyboardMentionOpen &&
+              showEmployeeSelector &&
+              activeKeyboardCharacter === '@' &&
+              keyboardMentionOptions.length > 0
+            const isComposing = event.isComposing || event.nativeEvent.isComposing
+
+            if (isKeyboardEmployeeMenuOpen) {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault()
+                setKeyboardActiveIndex((prev) => {
+                  const current = prev >= 0 ? prev : -1
+                  return (current + 1) % keyboardMentionOptions.length
+                })
+                return
+              }
+
+              if (event.key === 'ArrowUp') {
+                event.preventDefault()
+                setKeyboardActiveIndex((prev) => {
+                  const current = prev >= 0 ? prev : 0
+                  return (current - 1 + keyboardMentionOptions.length) % keyboardMentionOptions.length
+                })
+                return
+              }
+
+              if (event.key === 'Enter' && !isComposing) {
+                suppressSubmitForCurrentFrame()
+                const normalizedIndex =
+                  keyboardActiveIndex >= 0 ? keyboardActiveIndex : 0
+                const activeOption = keyboardMentionOptions[normalizedIndex]
+                if (!activeOption) return
+
+                if (activeOption.value === selectedEmployeeKey) {
+                  closeMentionPanel()
+                  restoreCaretSnapshot()
+                  return
+                }
+
+                handleMentionSelect(activeOption, 'keyboard')
+                return
+              }
+            }
+
             if (keyboardMentionOpen) {
               scheduleCursorAnchorPosition()
             }
