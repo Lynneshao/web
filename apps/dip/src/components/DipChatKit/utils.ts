@@ -77,6 +77,7 @@ export const buildDefaultMessageTurnsFromSubmitPayload = (
       questionAttachments,
       answerMarkdown: '',
       answerEvents: [],
+      answerTimeline: [],
       answerLoading: false,
       answerStreaming: false,
       createdAt: new Date().toISOString(),

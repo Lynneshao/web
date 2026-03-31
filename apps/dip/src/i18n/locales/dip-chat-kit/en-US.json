@@ -59,6 +59,7 @@
     "fileSizeExceeded": "File \"{fileName}\" exceeds the 5MB limit.",
     "duplicateFileUploaded": "File \"{fileName}\" has already been uploaded and cannot be uploaded again.",
     "toolCountText": "{count} tools",
+    "toolCalledCount": "Called {count} tools",
     "toolMoreSuffix": "+{count} more",
     "toolCompleted": "Completed",
     "toolOutputLabel": "Tool output",
@@ -67,6 +68,7 @@
     "generating": "Generating",
     "generatingDesc": "Please wait...",
     "toolCalling": "Calling tools",
+    "toolCallingWithName": "Calling {toolName}",
     "thinkingTitle": "Reasoning"
   }
 }

@@ -79,6 +79,7 @@ export interface DipChatKitResponseStreamToolCallPayload {
   toolCallId: string
   text: string
   status: DipChatKitResponseStreamStatus
+  isError?: boolean
   itemId?: string
   outputIndex?: number
 }

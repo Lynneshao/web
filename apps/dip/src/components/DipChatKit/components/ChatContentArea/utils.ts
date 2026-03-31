@@ -215,6 +215,7 @@ const createEmptyTurn = (
     questionAttachments: [],
     answerMarkdown: '',
     answerEvents: [],
+    answerTimeline: [],
     answerLoading: false,
     answerStreaming: false,
     createdAt,
@@ -228,6 +229,29 @@ const normalizeSessionCreatedAt = (rawTs: unknown): string => {
   return new Date().toISOString()
 }
 
+const appendTurnAnswerText = (turn: DipChatKitMessageTurn, text: string, timelineId: string) => {
+  const normalizedText = text.trim()
+  if (!normalizedText) return
+
+  turn.answerMarkdown = turn.answerMarkdown
+    ? `${turn.answerMarkdown}\n\n${normalizedText}`
+    : normalizedText
+  turn.answerTimeline.push({
+    id: timelineId,
+    kind: 'text',
+    text: normalizedText,
+  })
+}
+
+const appendTurnAnswerEvent = (turn: DipChatKitMessageTurn, event: DipChatKitAnswerEvent, timelineId: string) => {
+  turn.answerEvents.push(event)
+  turn.answerTimeline.push({
+    id: timelineId,
+    kind: 'event',
+    event,
+  })
+}
+
 export const mapSessionMessagesToTurns = (
   messages: DipChatKitSessionMessage[] | undefined,
   sessionKey = '',
@@ -237,6 +261,7 @@ export const mapSessionMessagesToTurns = (
   }
 
   const turns: DipChatKitMessageTurn[] = []
+  let activeTurn: DipChatKitMessageTurn | null = null
 
   messages.forEach((message, index) => {
     const role = normalizeSessionMessageRole(message.role)
@@ -250,39 +275,53 @@ export const mapSessionMessagesToTurns = (
     if (role === 'user') {
       const nextTurn = createEmptyTurn(index, createdAt, sessionKey, content, message.id)
       turns.push(nextTurn)
+      activeTurn = nextTurn
       return
     }
 
-    const nextTurn = createEmptyTurn(index, createdAt, sessionKey, '', message.id)
+    if (!activeTurn) {
+      activeTurn = createEmptyTurn(index, createdAt, sessionKey, '', message.id)
+      turns.push(activeTurn)
+    }
+    const resolvedTurn = activeTurn
+    if (!resolvedTurn) return
 
     if (role === 'assistant' && content) {
-      nextTurn.answerMarkdown = content
+      appendTurnAnswerText(resolvedTurn, content, `session_timeline_text_${index}`)
     }
 
     if (role === 'assistant') {
       const toolCallEvents = extractToolCallEventsFromMessage(message, index)
       if (toolCallEvents.length > 0) {
-        nextTurn.answerEvents.push(...toolCallEvents)
+        toolCallEvents.forEach((toolEvent, toolIndex) => {
+          appendTurnAnswerEvent(
+            resolvedTurn,
+            toolEvent,
+            `session_timeline_event_tool_call_${index}_${toolIndex}`,
+          )
+        })
       }
     }
 
     const event = createSessionEvent(message, index, role)
     if (event) {
-      nextTurn.answerEvents.push(event)
+      appendTurnAnswerEvent(resolvedTurn, event, `session_timeline_event_${index}`)
     }
 
     if (role !== 'assistant' && role !== SYSTEM_ROLE && content) {
-      nextTurn.answerMarkdown = content
-    }
-
-    if (
-      nextTurn.question.trim().length > 0 ||
-      nextTurn.answerMarkdown.trim().length > 0 ||
-      nextTurn.answerEvents.length > 0
-    ) {
-      turns.push(nextTurn)
+      appendTurnAnswerText(
+        resolvedTurn,
+        content,
+        `session_timeline_text_non_assistant_${index}`,
+      )
     }
   })
 
-  return turns
+  return turns.filter((turn) => {
+    return (
+      turn.question.trim().length > 0 ||
+      turn.answerMarkdown.trim().length > 0 ||
+      turn.answerEvents.length > 0
+    )
+  })
 }

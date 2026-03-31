@@ -59,6 +59,7 @@
     "eventActionView": "查看",
     "eventActionError": "错误",
     "toolCountText": "{count} 个工具",
+    "toolCalledCount": "调用了{count}个工具",
     "toolMoreSuffix": "+{count} 个",
     "toolCompleted": "已完成",
     "toolOutputLabel": "工具输出",
@@ -67,6 +68,7 @@
     "generating": "正在生成",
     "generatingDesc": "请稍候...",
     "toolCalling": "正在调用工具",
+    "toolCallingWithName": "正在调用{toolName}",
     "thinkingTitle": "思考过程"
   }
 }

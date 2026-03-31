@@ -159,9 +159,11 @@ const extractToolCallChunkFromPayload = (
   const toolCallId = toOptionalString(itemPayload.call_id ?? itemPayload.callId) || ''
   const itemId = toOptionalString(itemPayload.id) || ''
   const outputIndex = toOptionalFiniteNumber(payload.output_index)
+  const isCompleted = eventType === 'response.output_item.done'
   const text = toTextFromUnknown(itemPayload.arguments)
+  const isError = isCompleted && itemPayload.error !== undefined && itemPayload.error !== null
   const status: DipChatKitResponseStreamToolCallPayload['status'] =
-    eventType === 'response.output_item.done' ? 'completed' : 'in_progress'
+    isCompleted ? 'completed' : 'in_progress'
 
   return {
     kind: 'toolCall',
@@ -171,6 +173,7 @@ const extractToolCallChunkFromPayload = (
       toolCallId,
       text,
       status,
+      isError,
       itemId,
       outputIndex,
     },

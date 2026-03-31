@@ -105,8 +105,10 @@
 }
 
 .streamingThought {
+  padding-inline: 0 !important;
+
   :global {
-    .ant-thought-chain-item-container {
+    .dip-thought-chain {
       padding-inline: 0 !important;
     }
   }
@@ -204,15 +206,26 @@
 
     .dip-collapse-header {
       align-items: center !important;
-      padding: 8px 12px !important;
+      justify-content: flex-start !important;
+      padding: 8px 0 !important;
       border-radius: 8px;
-      color: #667085;
+      color: rgba(0, 0, 0, 0.45) !important;
       font-size: 12px;
       transition: background 0.15s ease;
     }
 
+    .dip-collapse-header-text {
+      flex: 0 0 auto !important;
+    }
+
+    .dip-collapse-expand-icon {
+      margin-inline-start: 0 !important;
+      margin-inline-end: 6px !important;
+      flex: 0 0 auto !important;
+    }
+
     .dip-collapse-header:hover {
-      background: rgba(242, 244, 247, 0.6);
+      color: rgba(0, 0, 0, 0.85) !important;
     }
 
     .dip-collapse-content {

@@ -8,13 +8,14 @@ import {
 import { Bubble, CodeHighlighter, Mermaid, Think, ThoughtChain } from '@ant-design/x'
 import XMarkdown, { type ComponentProps as MarkdownComponentProps } from '@ant-design/x-markdown'
 import '@ant-design/x-markdown/dist/x-markdown.css'
-import { Button, Tag, Tooltip } from 'antd'
+import { Button, Collapse, Tag, Tooltip } from 'antd'
 import clsx from 'clsx'
 import isEmpty from 'lodash/isEmpty'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import intl from 'react-intl-universal'
 import IconFont from '@/components/IconFont'
+import type { DipChatKitAnswerEvent, DipChatKitAnswerTimelineItem } from '../../../../types'
 import MessageActions from '../MessageActions'
 import type { MessageAction } from '../MessageActions/types'
 import ArtifactMessageCard from './ArtifactMessageCard'
@@ -30,12 +31,280 @@ import {
   extractMarkdownFileNameFromHref,
   getDomDataAttributes,
   isMermaidLanguage,
-  isToolRoleEvent,
   normalizeLanguage,
   normalizeMarkdownText,
 } from './utils'
 
 const TOOL_CARD_COLLAPSED_MAX_HEIGHT = 200
+const STREAMING_TOOL_SUMMARY_KEYS = ['summary', 'description', 'desc', 'detail'] as const
+
+interface AiAnswerBubbleTextSegment {
+  id: string
+  kind: 'text'
+  text: string
+}
+
+interface AiAnswerBubbleToolSegment {
+  id: string
+  kind: 'tools'
+  events: DipChatKitAnswerEvent[]
+}
+
+type AiAnswerBubbleSegment = AiAnswerBubbleTextSegment | AiAnswerBubbleToolSegment
+
+const isNonEmptyText = (value: string): boolean => {
+  return value.trim().length > 0
+}
+
+const buildFallbackTimeline = (answerMarkdown: string, answerEvents: DipChatKitAnswerEvent[]) => {
+  const timeline: DipChatKitAnswerTimelineItem[] = []
+  if (answerMarkdown) {
+    timeline.push({
+      id: 'fallback_timeline_text',
+      kind: 'text',
+      text: answerMarkdown,
+    })
+  }
+
+  answerEvents.forEach((event, index) => {
+    timeline.push({
+      id: `fallback_timeline_event_${index}`,
+      kind: 'event',
+      event,
+    })
+  })
+
+  return timeline
+}
+
+const buildAnswerSegments = (
+  timeline: DipChatKitAnswerTimelineItem[],
+  answerMarkdown: string,
+  answerEvents: DipChatKitAnswerEvent[],
+): AiAnswerBubbleSegment[] => {
+  const sourceTimeline = timeline.length > 0 ? timeline : buildFallbackTimeline(answerMarkdown, answerEvents)
+  const segments: AiAnswerBubbleSegment[] = []
+
+  let toolEventsBuffer: DipChatKitAnswerEvent[] = []
+  let textBuffer = ''
+
+  const flushToolBuffer = () => {
+    if (toolEventsBuffer.length === 0) return
+    segments.push({
+      id: `segment_tools_${segments.length}_${toolEventsBuffer[0]?.id || 'unknown'}`,
+      kind: 'tools',
+      events: toolEventsBuffer,
+    })
+    toolEventsBuffer = []
+  }
+
+  const flushTextBuffer = () => {
+    if (!isNonEmptyText(textBuffer)) {
+      textBuffer = ''
+      return
+    }
+    segments.push({
+      id: `segment_text_${segments.length}`,
+      kind: 'text',
+      text: textBuffer,
+    })
+    textBuffer = ''
+  }
+
+  sourceTimeline.forEach((item) => {
+    if (item.kind === 'event') {
+      flushTextBuffer()
+      toolEventsBuffer.push(item.event)
+      return
+    }
+
+    const nextText = item.text || ''
+    if (!nextText) return
+
+    if (isNonEmptyText(nextText)) {
+      flushToolBuffer()
+    }
+    textBuffer = `${textBuffer}${nextText}`
+  })
+
+  flushTextBuffer()
+  flushToolBuffer()
+
+  return segments
+}
+
+const normalizeComparableText = (value: string): string => {
+  return value.replace(/\r\n/g, '\n').trim()
+}
+
+const getFirstNonEmptyStringByKeys = (
+  source: Record<string, unknown> | undefined,
+  keys: readonly string[],
+): string => {
+  if (!source) return ''
+
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value !== 'string') continue
+    const normalized = value.trim()
+    if (normalized) {
+      return normalized
+    }
+  }
+
+  return ''
+}
+
+const parseRecordFromText = (text: string): Record<string, unknown> | null => {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  if (
+    (!trimmed.startsWith('{') || !trimmed.endsWith('}')) &&
+    (!trimmed.startsWith('[') || !trimmed.endsWith(']'))
+  ) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+const extractStreamingToolSummary = (event: DipChatKitAnswerEvent): string => {
+  const summaryFromDetails = getFirstNonEmptyStringByKeys(event.details, STREAMING_TOOL_SUMMARY_KEYS)
+  if (summaryFromDetails) return summaryFromDetails
+
+  const parsedText = parseRecordFromText(event.text || '')
+  if (!parsedText) return ''
+
+  const summaryFromRoot = getFirstNonEmptyStringByKeys(parsedText, STREAMING_TOOL_SUMMARY_KEYS)
+  if (summaryFromRoot) return summaryFromRoot
+
+  const args = parsedText.arguments
+  if (typeof args === 'string') {
+    const parsedArgs = parseRecordFromText(args)
+    if (!parsedArgs) return ''
+    return getFirstNonEmptyStringByKeys(parsedArgs, STREAMING_TOOL_SUMMARY_KEYS)
+  }
+
+  if (args && typeof args === 'object' && !Array.isArray(args)) {
+    const summaryFromArguments = getFirstNonEmptyStringByKeys(
+      args as Record<string, unknown>,
+      STREAMING_TOOL_SUMMARY_KEYS,
+    )
+    if (summaryFromArguments) return summaryFromArguments
+  }
+
+  return ''
+}
+
+const resolveInProgressToolHint = (
+  events: DipChatKitAnswerEvent[],
+): {
+  summary: string
+  toolName: string
+} => {
+  let fallbackToolName = ''
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event.type !== 'toolCall') continue
+    if (event.details?.status !== 'in_progress') continue
+
+    const toolName = event.toolName?.trim() || ''
+    if (!fallbackToolName && toolName) {
+      fallbackToolName = toolName
+    }
+
+    const summary = extractStreamingToolSummary(event)
+    if (summary) {
+      return {
+        summary,
+        toolName,
+      }
+    }
+  }
+
+  return {
+    summary: '',
+    toolName: fallbackToolName,
+  }
+}
+
+const extractToolDuplicateCandidates = (events: DipChatKitAnswerEvent[]): string[] => {
+  const candidateSet = new Set<string>()
+  events.forEach((event) => {
+    const text = normalizeComparableText(event.text || '')
+    if (!text) return
+    if (text.length < 16) return
+    candidateSet.add(text)
+  })
+  return Array.from(candidateSet).sort((left, right) => right.length - left.length)
+}
+
+const stripDuplicatedToolText = (text: string, events: DipChatKitAnswerEvent[]): string => {
+  const candidates = extractToolDuplicateCandidates(events)
+  if (candidates.length === 0) return text
+
+  let nextText = text
+  candidates.forEach((candidate) => {
+    if (!candidate) return
+    if (!nextText.includes(candidate)) return
+    nextText = nextText.split(candidate).join('')
+  })
+
+  return nextText.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+const normalizeAnswerSegments = (segments: AiAnswerBubbleSegment[]): AiAnswerBubbleSegment[] => {
+  const normalizedSegments: AiAnswerBubbleSegment[] = []
+
+  segments.forEach((segment, index) => {
+    if (segment.kind === 'tools') {
+      const lastSegment = normalizedSegments[normalizedSegments.length - 1]
+      if (lastSegment && lastSegment.kind === 'tools') {
+        lastSegment.events = [...lastSegment.events, ...segment.events]
+        return
+      }
+      normalizedSegments.push({
+        ...segment,
+        events: [...segment.events],
+      })
+      return
+    }
+
+    const previousSegment = normalizedSegments[normalizedSegments.length - 1]
+    const previousToolEvents =
+      previousSegment && previousSegment.kind === 'tools' ? previousSegment.events : []
+    const nextSegment = segments[index + 1]
+    const nextToolEvents = nextSegment && nextSegment.kind === 'tools' ? nextSegment.events : []
+    const filteredByPrevious = stripDuplicatedToolText(segment.text, previousToolEvents)
+    const filteredText = stripDuplicatedToolText(filteredByPrevious, nextToolEvents)
+
+    if (!isNonEmptyText(filteredText)) {
+      return
+    }
+
+    const lastSegment = normalizedSegments[normalizedSegments.length - 1]
+    if (lastSegment && lastSegment.kind === 'text') {
+      lastSegment.text = `${lastSegment.text}${filteredText}`
+      return
+    }
+
+    normalizedSegments.push({
+      ...segment,
+      text: filteredText,
+    })
+  })
+
+  return normalizedSegments
+}
 
 const isToolCardStateEqual = (
   left: Record<string, boolean>,
@@ -53,13 +322,15 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
   onRegenerate,
   onOpenPreview,
 }) => {
-  const toolCards = useMemo(() => {
+  const allToolCards = useMemo(() => {
     return buildToolCardItems(turn.answerEvents)
   }, [turn.answerEvents])
 
-  const hasToolRoleEvents = useMemo(() => {
-    return turn.answerEvents.some(isToolRoleEvent)
-  }, [turn.answerEvents])
+  const answerSegments = useMemo(() => {
+    const rawSegments = buildAnswerSegments(turn.answerTimeline || [], turn.answerMarkdown, turn.answerEvents)
+    return normalizeAnswerSegments(rawSegments)
+  }, [turn.answerEvents, turn.answerMarkdown, turn.answerTimeline])
+
   const isCallingTool = useMemo(() => {
     return turn.answerEvents.some((event) => {
       if (event.type !== 'toolCall') return false
@@ -76,7 +347,7 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
 
   const measureToolCardOverflow = useCallback(() => {
     const nextOverflowState: Record<string, boolean> = {}
-    toolCards.forEach((toolCard) => {
+    allToolCards.forEach((toolCard) => {
       const bodyElement = toolCardBodyRefMap.current[toolCard.id]
       if (!bodyElement) return
       nextOverflowState[toolCard.id] = bodyElement.scrollHeight > TOOL_CARD_COLLAPSED_MAX_HEIGHT
@@ -89,7 +360,7 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
 
     setExpandedToolCards((prevState) => {
       const nextExpandedState: Record<string, boolean> = {}
-      toolCards.forEach((toolCard) => {
+      allToolCards.forEach((toolCard) => {
         if (nextOverflowState[toolCard.id] && prevState[toolCard.id]) {
           nextExpandedState[toolCard.id] = true
         }
@@ -97,16 +368,16 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
       if (isToolCardStateEqual(prevState, nextExpandedState)) return prevState
       return nextExpandedState
     })
-  }, [toolCards])
+  }, [allToolCards])
 
   useEffect(() => {
-    const validCardIdSet = new Set(toolCards.map((toolCard) => toolCard.id))
+    const validCardIdSet = new Set(allToolCards.map((toolCard) => toolCard.id))
     Object.keys(toolCardBodyRefMap.current).forEach((cardId) => {
       if (!validCardIdSet.has(cardId)) {
         delete toolCardBodyRefMap.current[cardId]
       }
     })
-  }, [toolCards])
+  }, [allToolCards])
 
   useEffect(() => {
     measureToolCardOverflow()
@@ -317,7 +588,7 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
   const answerContent =
     turn.answerMarkdown ||
     (turn.answerLoading ? intl.get('dipChatKit.answerLoading').d('Processing...') : '')
-  const hasToolCards = toolCards.length > 0
+  const hasToolCards = allToolCards.length > 0
   const shouldRenderAnswerBubble =
     Boolean(answerContent) || turn.answerLoading || turn.answerStreaming || hasToolCards
 
@@ -494,8 +765,8 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
     )
   }
 
-  const renderToolCards = (isToolOnly = false) => {
-    if (!hasToolCards) {
+  const renderToolCards = (toolCards: DipChatKitToolCardItem[], isToolOnly = false) => {
+    if (toolCards.length === 0) {
       return null
     }
 
@@ -506,20 +777,99 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
     )
   }
 
-  const renderStreamingThought = () => {
+  const renderStreamingThought = (events?: DipChatKitAnswerEvent[]) => {
     if (!turn.answerStreaming) return null
+    const generatingDesc = intl.get('dipChatKit.generatingDesc').d('Please wait...') as string
+    let title = intl.get('dipChatKit.generating').d('Generating') as string
+
+    if (isCallingTool) {
+      const toolHint = resolveInProgressToolHint(events || turn.answerEvents)
+      if (toolHint.summary) {
+        title = toolHint.summary
+      } else if (toolHint.toolName) {
+        title = intl
+          .get('dipChatKit.toolCallingWithName', { toolName: toolHint.toolName })
+          .d(`Calling ${toolHint.toolName}`) as string
+      } else {
+        title = intl.get('dipChatKit.toolCalling').d('Calling tools') as string
+      }
+    }
+
     return (
       <ThoughtChain.Item
         className={styles.streamingThought}
         blink
         variant="text"
-        title={
-          isCallingTool
-            ? (intl.get('dipChatKit.toolCalling').d('Calling tools') as string)
-            : (intl.get('dipChatKit.generating').d('Generating') as string)
-        }
-        description={intl.get('dipChatKit.generatingDesc').d('Please wait...') as string}
+        title={title}
+        description={generatingDesc}
       />
+    )
+  }
+
+  const isToolSegmentInProgress = (events: DipChatKitAnswerEvent[]): boolean => {
+    return events.some((event) => event.type === 'toolCall' && event.details?.status === 'in_progress')
+  }
+
+  const renderToolProcessSegment = (segment: AiAnswerBubbleToolSegment, index: number) => {
+    const segmentToolCards = buildToolCardItems(segment.events)
+    if (segmentToolCards.length === 0) return null
+
+    const panelKey = `tool_process_panel_${segment.id}_${index}`
+    const inProgress = isToolSegmentInProgress(segment.events)
+    const toolCalledText = intl
+      .get('dipChatKit.toolCalledCount', { count: segmentToolCards.length })
+      .d(`调用了${segmentToolCards.length}个工具`) as string
+
+    return (
+      <Collapse
+        className={styles.chatToolsCollapse}
+        key={`${panelKey}_${inProgress ? 'running' : 'done'}`}
+        ghost
+        expandIconPosition="start"
+        defaultActiveKey={inProgress ? [panelKey] : []}
+        items={[
+          {
+            key: panelKey,
+            label: toolCalledText,
+            children: (
+              <>
+                {renderToolCards(segmentToolCards)}
+                {inProgress && renderStreamingThought(segment.events)}
+              </>
+            ),
+          },
+        ]}
+      />
+    )
+  }
+
+  const renderTextSegment = (text: string, index: number) => {
+    const { thinkingText, answerText } = extractThinkingContent(text)
+
+    if (!thinkingText && !answerText) {
+      return null
+    }
+
+    return (
+      <div key={`answer_text_segment_${index}`}>
+        {!!thinkingText && (
+          <Think
+            className={styles.thinkingBlock}
+            title={intl.get('dipChatKit.thinkingTitle').d('思考过程') as string}
+            blink={turn.answerStreaming}
+            defaultExpanded={false}
+          >
+            <XMarkdown className={styles.thinkingMarkdown} components={markdownComponents}>
+              {thinkingText}
+            </XMarkdown>
+          </Think>
+        )}
+        {!!answerText && (
+          <XMarkdown className={styles.markdownRoot} components={markdownComponents}>
+            {answerText}
+          </XMarkdown>
+        )}
+      </div>
     )
   }
 
@@ -542,39 +892,23 @@ const AiAnswerBubble: React.FC<AiAnswerBubbleProps> = ({
           }}
           contentRender={(content) => {
             const normalizedContent = normalizeMarkdownText(content)
-            const { thinkingText, answerText } = extractThinkingContent(normalizedContent)
-            const shouldRenderToolOnlyCards = hasToolCards && hasToolRoleEvents
+            const hasBuiltSegments = answerSegments.length > 0
 
             return (
               <>
-                {shouldRenderToolOnlyCards ? (
-                  <>
-                    {renderToolCards(true)}
-                    {renderStreamingThought()}
-                  </>
-                ) : (
-                  <>
-                    {!!thinkingText && (
-                      <Think
-                        className={styles.thinkingBlock}
-                        title={intl.get('dipChatKit.thinkingTitle').d('思考过程') as string}
-                        blink={turn.answerStreaming}
-                        defaultExpanded={false}
-                      >
-                        <XMarkdown className={styles.thinkingMarkdown} components={markdownComponents}>
-                          {thinkingText}
-                        </XMarkdown>
-                      </Think>
-                    )}
-                    {!!answerText && (
-                      <XMarkdown className={styles.markdownRoot} components={markdownComponents}>
-                        {answerText}
-                      </XMarkdown>
-                    )}
-                    {renderToolCards()}
-                    {renderStreamingThought()}
-                  </>
-                )}
+                {hasBuiltSegments
+                  ? answerSegments.map((segment, index) => {
+                      if (segment.kind === 'tools') {
+                        return (
+                          <div key={segment.id}>
+                            {renderToolProcessSegment(segment, index)}
+                          </div>
+                        )
+                      }
+                      return renderTextSegment(segment.text, index)
+                    })
+                  : renderTextSegment(normalizedContent, 0)}
+                {turn.answerStreaming && !isCallingTool && renderStreamingThought()}
               </>
             )
           }}

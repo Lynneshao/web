@@ -35,6 +35,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [sessionMessagesLoading, setSessionMessagesLoading] = useState(false)
   const scrollRef = useRef<ScrollContainerRef | null>(null)
+  const messageListContentRef = useRef<HTMLDivElement | null>(null)
   const sessionKeyMapRef = useRef<Record<string, string>>({})
   const autoSentTurnIdsRef = useRef<Set<string>>(new Set())
   const abortControllerMapRef = useRef<Record<string, AbortController>>({})
@@ -144,6 +145,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
       text: payload.text,
       toolName: payload.toolName,
       toolCallId: payload.toolCallId,
+      isError: payload.isError,
       timestamp: Date.now(),
       details: {
         status: payload.status,
@@ -344,6 +346,21 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
   }, [streamFingerprint, scroll.autoScrollEnabled])
 
   useEffect(() => {
+    const target = messageListContentRef.current
+    if (!target) return
+
+    const observer = new window.ResizeObserver(() => {
+      if (!scroll.autoScrollEnabled) return
+      scrollRef.current?.scrollToBottom('auto')
+    })
+
+    observer.observe(target)
+    return () => {
+      observer.disconnect()
+    }
+  }, [scroll.autoScrollEnabled])
+
+  useEffect(() => {
     return () => {
       clearScheduledScroll()
     }
@@ -526,7 +543,7 @@ const ChatContentArea: React.FC<ChatContentAreaProps> = ({
         onReachBottomChange={handleReachBottomChange}
       >
         <div className={styles.messageList}>
-          <div className={styles.messageListContent}>
+          <div ref={messageListContentRef} className={styles.messageListContent}>
             {sessionMessagesLoading && (
               <div className={styles.sessionLoadingSkeleton}>
                 <Skeleton

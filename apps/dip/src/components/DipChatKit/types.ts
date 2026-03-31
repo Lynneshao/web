@@ -35,6 +35,22 @@ export interface DipChatKitAnswerEvent {
   details?: Record<string, unknown>
 }
 
+export interface DipChatKitAnswerTimelineTextItem {
+  id: string
+  kind: 'text'
+  text: string
+}
+
+export interface DipChatKitAnswerTimelineEventItem {
+  id: string
+  kind: 'event'
+  event: DipChatKitAnswerEvent
+}
+
+export type DipChatKitAnswerTimelineItem =
+  | DipChatKitAnswerTimelineTextItem
+  | DipChatKitAnswerTimelineEventItem
+
 export interface DipChatKitMessageTurn {
   id: string
   sessionKey?: string
@@ -44,6 +60,7 @@ export interface DipChatKitMessageTurn {
   questionAttachments: DipChatKitAttachment[]
   answerMarkdown: string
   answerEvents: DipChatKitAnswerEvent[]
+  answerTimeline: DipChatKitAnswerTimelineItem[]
   answerLoading: boolean
   answerStreaming: boolean
   answerError?: string

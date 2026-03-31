@@ -3,6 +3,7 @@ import useLatestState from '@/hooks/useLatestState'
 import type {
   DipChatKitAttachment,
   DipChatKitAnswerEvent,
+  DipChatKitAnswerTimelineItem,
   DipChatKitMessageTurn,
   DipChatKitPreviewPayload,
   DipChatKitState,
@@ -73,6 +74,10 @@ const updateTurnById = (
   })
 }
 
+const createStreamTextTimelineId = (): string => {
+  return `stream_text_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
+}
+
 export const useDipChatKitStore = (): DipChatKitStoreContextType => {
   const context = useContext(DipChatKitStoreContext)
   if (!context) {
@@ -105,6 +110,7 @@ const DipChatKitStoreProvider: React.FC<PropsWithChildren<DipChatKitStoreProvide
       questionAttachments: mapFilesToAttachments(payload.files),
       answerMarkdown: '',
       answerEvents: [],
+      answerTimeline: [],
       answerLoading: true,
       answerStreaming: true,
       createdAt: new Date().toISOString(),
@@ -134,6 +140,7 @@ const DipChatKitStoreProvider: React.FC<PropsWithChildren<DipChatKitStoreProvide
         pendingSend: false,
         answerMarkdown: clearPrevious ? '' : turn.answerMarkdown,
         answerEvents: clearPrevious ? [] : turn.answerEvents,
+        answerTimeline: clearPrevious ? [] : turn.answerTimeline,
         answerLoading: true,
         answerStreaming: true,
         answerError: undefined,
@@ -157,12 +164,37 @@ const DipChatKitStoreProvider: React.FC<PropsWithChildren<DipChatKitStoreProvide
   const appendAnswerChunk: DipChatKitStoreContextType['appendAnswerChunk'] = (turnId, chunk) => {
     setStore((prevState) => ({
       ...prevState,
-      messageTurns: updateTurnById(prevState.messageTurns, turnId, (turn) => ({
-        ...turn,
-        answerMarkdown: `${turn.answerMarkdown}${chunk}`,
-        answerLoading: false,
-        answerStreaming: true,
-      })),
+      messageTurns: updateTurnById(prevState.messageTurns, turnId, (turn) => {
+        const lastTimelineItem = turn.answerTimeline[turn.answerTimeline.length - 1]
+        let nextAnswerTimeline: DipChatKitAnswerTimelineItem[] = turn.answerTimeline
+
+        if (lastTimelineItem?.kind === 'text') {
+          nextAnswerTimeline = [
+            ...turn.answerTimeline.slice(0, -1),
+            {
+              ...lastTimelineItem,
+              text: `${lastTimelineItem.text}${chunk}`,
+            },
+          ]
+        } else {
+          nextAnswerTimeline = [
+            ...turn.answerTimeline,
+            {
+              id: createStreamTextTimelineId(),
+              kind: 'text',
+              text: chunk,
+            },
+          ]
+        }
+
+        return {
+          ...turn,
+          answerMarkdown: `${turn.answerMarkdown}${chunk}`,
+          answerTimeline: nextAnswerTimeline,
+          answerLoading: false,
+          answerStreaming: true,
+        }
+      }),
     }))
   }
 
@@ -186,9 +218,32 @@ const DipChatKitStoreProvider: React.FC<PropsWithChildren<DipChatKitStoreProvide
               )
             : [...turn.answerEvents, normalizedEvent]
 
+        const existedTimelineEventIndex = turn.answerTimeline.findIndex(
+          (item) => item.kind === 'event' && item.event.id === normalizedEvent.id,
+        )
+        const nextAnswerTimeline: DipChatKitAnswerTimelineItem[] =
+          existedTimelineEventIndex >= 0
+            ? turn.answerTimeline.map((item, index) =>
+                index === existedTimelineEventIndex && item.kind === 'event'
+                  ? {
+                      ...item,
+                      event: { ...item.event, ...normalizedEvent },
+                    }
+                  : item,
+              )
+            : [
+                ...turn.answerTimeline,
+                {
+                  id: `stream_timeline_event_${normalizedEvent.id}`,
+                  kind: 'event',
+                  event: normalizedEvent,
+                },
+              ]
+
         return {
           ...turn,
           answerEvents: nextAnswerEvents,
+          answerTimeline: nextAnswerTimeline,
           answerLoading: false,
           answerStreaming: true,
         }
