@@ -955,6 +955,10 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     if (currentEmployeeValue === nextEmployeeValue) return
 
     rebuildSenderContent(currentContent, selectedEmployee)
+
+    if (selectedEmployee && sanitizeEditorValue(currentContent).length === 0) {
+      normalizeCaretAfterEmployeeSlot()
+    }
   }, [rebuildSenderContent, selectedEmployee, showEmployeeSelector])
 
   useEffect(() => {
@@ -964,6 +968,10 @@ const AiPromptInput: React.FC<AiPromptInputProps> = ({
     if (senderContent === value) return
 
     rebuildSenderContent(value, selectedEmployee)
+
+    if (selectedEmployee && sanitizeEditorValue(value).length === 0) {
+      normalizeCaretAfterEmployeeSlot()
+    }
   }, [rebuildSenderContent, selectedEmployee, showEmployeeSelector, value])
 
   const markMentionMenuMouseDown = () => {
